@@ -167,7 +167,7 @@ def get_fusion_property(properties: torch.Tensor,
 
 def align_superpoint_label(labels: torch.Tensor,
                            superpoint: torch.Tensor,
-                           num_label: int=20,
+                           num_label: int,
                            ignore_label: int=-100):
     r"""refine semantic segmentation by superpoint
 
@@ -196,7 +196,7 @@ def align_superpoint_label(labels: torch.Tensor,
 
 def voting_semantic_segmentation(semantic_preds: torch.Tensor,
                                  superpoint: torch.Tensor,
-                                 num_semantic: int=20):
+                                 num_semantic: int):
     r"""get semantic segmentation by superpoint voting
 
     Args:

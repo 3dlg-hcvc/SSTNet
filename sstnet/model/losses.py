@@ -14,6 +14,7 @@ from .func_helper import *
 class SSTLoss(nn.Module):
     def __init__(self,
                  ignore_label: int,
+                 semantic_class: int,
                  fusion_epochs: int=128,
                  score_epochs: int=160,
                  bg_thresh: float=0.25,
@@ -28,7 +29,7 @@ class SSTLoss(nn.Module):
         self.fg_thresh = fg_thresh
         self.semantic_dice = semantic_dice
         self.loss_weight = loss_weight
-
+        self.semantic_classes = semantic_class
         #### criterion
         self.semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.ignore_label)
         self.score_criterion = nn.BCELoss(reduction="none")
@@ -49,7 +50,7 @@ class SSTLoss(nn.Module):
             semantic_scores = semantic_scores[filter_ids]
             semantic_scores = F.softmax(semantic_scores, dim=-1)
             semantic_labels = semantic_labels[filter_ids]
-            one_hot_labels = F.one_hot(semantic_labels, num_classes=20)
+            one_hot_labels = F.one_hot(semantic_labels, num_classes=self.semantic_class)
             semantic_loss += dice_loss_multi_calsses(semantic_scores, one_hot_labels).mean()
         loss_out["semantic_loss"] = (semantic_loss, semantic_scores.shape[0])
 

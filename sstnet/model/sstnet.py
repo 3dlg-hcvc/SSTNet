@@ -15,24 +15,26 @@ import gorilla3d.nn as g3n
 
 from .func_helper import *
 
+
 @gorilla.MODELS.register_module()
 class SSTNet(nn.Module):
     def __init__(self,
-                 input_channel: int=3,
-                 use_coords: bool=True,
-                 blocks: int=5,
-                 block_reps: int=2,
-                 media: int=32,
-                 classes: int=20,
-                 score_scale: int=50,
-                 score_fullscale: int=14,
-                 score_mode: int=4,
-                 detach: bool=True,
-                 affinity_weight: List[float]=[1.0, 1.0],
-                 with_refine: bool=False,
-                 fusion_epochs: int=128,
-                 score_epochs: int=160,
-                 fix_module: List[str]=[],
+                 classes: int,
+                 input_channel: int = 3,
+                 use_coords: bool = True,
+                 use_normals: bool = False,
+                 blocks: int = 5,
+                 block_reps: int = 2,
+                 media: int = 32,
+                 score_scale: int = 50,
+                 score_fullscale: int = 14,
+                 score_mode: int = 4,
+                 detach: bool = True,
+                 affinity_weight: List[float] = [1.0, 1.0],
+                 with_refine: bool = False,
+                 fusion_epochs: int = 128,
+                 score_epochs: int = 160,
+                 fix_module: List[str] = [],
                  **kwargs
                  ):
         super().__init__()
@@ -49,6 +51,8 @@ class SSTNet(nn.Module):
 
         #### backbone
         if use_coords:
+            input_channel += 3
+        if use_normals:
             input_channel += 3
 
         self.input_conv = spconv.SparseSequential(
@@ -90,11 +94,11 @@ class SSTNet(nn.Module):
         refine_channel = media + classes + 3 * 2
         #### superpoint, fusion and refine branch
         self.superpoint_linear = gn.MultiFC(
-            nodes = [media, media, media],
-            drop_last = False
+            nodes=[media, media, media],
+            drop_last=False
         )
         self.fusion_linear = gn.MultiFC(
-            nodes = [fusion_channel, 256, 512, 512, 1]
+            nodes=[fusion_channel, 256, 512, 512, 1]
         )
         self.refine_gcn = gn.GCN([refine_channel, 128, 128, 1])
 
@@ -136,7 +140,6 @@ class SSTNet(nn.Module):
             except:
                 pass
 
-
     def clusters_voxelization(self,
                               clusters_idx: torch.Tensor,
                               feats: torch.Tensor,
@@ -158,15 +161,20 @@ class SSTNet(nn.Module):
         clusters_feats = feats[c_idxs.long()]
         clusters_coords = coords[c_idxs.long()]
 
-        clusters_coords_mean = scatter_mean(clusters_coords, clusters_idx[:, 0].cuda().long(), dim=0) # [nCluster, 3], float
+        clusters_coords_mean = scatter_mean(clusters_coords, clusters_idx[:, 0].cuda().long(),
+                                            dim=0)  # [nCluster, 3], float
 
-        clusters_coords_mean = torch.index_select(clusters_coords_mean, 0, clusters_idx[:, 0].cuda().long())  # [sum_points, 3], float
+        clusters_coords_mean = torch.index_select(clusters_coords_mean, 0,
+                                                  clusters_idx[:, 0].cuda().long())  # [sum_points, 3], float
         clusters_coords -= clusters_coords_mean
 
-        clusters_coords_min = scatter_min(clusters_coords, clusters_idx[:, 0].cuda().long(), dim=0)[0] # [nCluster, 3], float
-        clusters_coords_max = scatter_max(clusters_coords, clusters_idx[:, 0].cuda().long(), dim=0)[0] # [nCluster, 3], float
+        clusters_coords_min = scatter_min(clusters_coords, clusters_idx[:, 0].cuda().long(), dim=0)[
+            0]  # [nCluster, 3], float
+        clusters_coords_max = scatter_max(clusters_coords, clusters_idx[:, 0].cuda().long(), dim=0)[
+            0]  # [nCluster, 3], float
 
-        clusters_scale = 1 / ((clusters_coords_max - clusters_coords_min) / fullscale).max(1)[0] - 0.01  # [nCluster], float
+        clusters_scale = 1 / ((clusters_coords_max - clusters_coords_min) / fullscale).max(1)[
+            0] - 0.01  # [nCluster], float
         clusters_scale = torch.clamp(clusters_scale, min=None, max=scale)
 
         min_xyz = clusters_coords_min * clusters_scale.unsqueeze(-1)  # [nCluster, 3], float
@@ -183,9 +191,11 @@ class SSTNet(nn.Module):
         assert clusters_coords.shape.numel() == ((clusters_coords >= 0) * (clusters_coords < fullscale)).sum()
 
         clusters_coords = clusters_coords.long()
-        clusters_coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), clusters_coords.cpu()], 1)  # [sum_points, 1 + 3]
+        clusters_coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), clusters_coords.cpu()],
+                                    1)  # [sum_points, 1 + 3]
 
-        out_coords, inp_map, out_map = pointgroup_ops.voxelization_idx(clusters_coords, int(clusters_idx[-1, 0]) + 1, mode)
+        out_coords, inp_map, out_map = pointgroup_ops.voxelization_idx(clusters_coords, int(clusters_idx[-1, 0]) + 1,
+                                                                       mode)
         # output_coords: M * [1 + 3] long
         # input_map: sum_points int
         # output_map: M * [maxActive + 1] int
@@ -193,10 +203,10 @@ class SSTNet(nn.Module):
         out_feats = pointgroup_ops.voxelization(clusters_feats, out_map.cuda(), mode)  # [M, C], float, cuda
 
         spatial_shape = [fullscale] * 3
-        voxelization_feats = spconv.SparseConvTensor(out_feats, out_coords.int().cuda(), spatial_shape, int(clusters_idx[-1, 0]) + 1)
+        voxelization_feats = spconv.SparseConvTensor(out_feats, out_coords.int().cuda(), spatial_shape,
+                                                     int(clusters_idx[-1, 0]) + 1)
 
         return voxelization_feats, inp_map
-
 
     def hierarchical_fusion_step(self,
                                  superpoint: torch.Tensor,
@@ -205,11 +215,11 @@ class SSTNet(nn.Module):
                                  features: torch.Tensor,
                                  semantic_scores: torch.Tensor,
                                  pt_offsets: torch.Tensor,
-                                 instance_labels: Optional[torch.Tensor]=None,
-                                 scene: Optional[str]=None,
-                                 prepare_flag: bool=False,
-                                 ret: Optional[dict]=None,
-                                 mode: str="train") -> None:
+                                 instance_labels: Optional[torch.Tensor] = None,
+                                 scene: Optional[str] = None,
+                                 prepare_flag: bool = False,
+                                 ret: Optional[dict] = None,
+                                 mode: str = "train") -> None:
         r"""
         the core step, building hierarchical clustering tree and bfs traverse tree
         to get all fusion pair and judge whether fusion or not
@@ -230,47 +240,49 @@ class SSTNet(nn.Module):
         timer = gorilla.Timer()
         # count the superpoint num
         shifted = coords + pt_offsets
-        
-        semantic_scores = F.softmax(semantic_scores, dim=-1) # [N, 20]
+
+        semantic_scores = F.softmax(semantic_scores, dim=-1)  # [N, 20]
         semantic_preds = semantic_scores.max(1)[1]  # [N], long
-        semantic_preds = voting_semantic_segmentation(semantic_preds, superpoint)
-        
+        semantic_preds = voting_semantic_segmentation(semantic_preds, superpoint, self.classes)
+
         # get point-wise affinity
         semantic_weight, shifted_weight = self.affinity_weight
-        affinity_origin = torch.cat([semantic_scores * semantic_weight, shifted * shifted_weight], dim=1) # [N, C']
-        append_feaures = torch.cat([semantic_scores, shifted, coords], dim=1) # [N, C']
+        affinity_origin = torch.cat([semantic_scores * semantic_weight, shifted * shifted_weight], dim=1)  # [N, C']
+        append_feaures = torch.cat([semantic_scores, shifted, coords], dim=1)  # [N, C']
 
         if self.detach:
             append_feaures = append_feaures.detach()
-        
+
         # filter out according to semantic prediction labels
         filter_ids = torch.nonzero(semantic_preds > 1).view(-1)
         superpoint = torch.unique(superpoint[filter_ids], return_inverse=True)[1]
-        coords = coords[filter_ids] # [N', 3]
-        features = features[filter_ids] # [N', C]
-        affinity = affinity_origin[filter_ids] # [N', C']
-        append_feaures = append_feaures[filter_ids] # [N', C']
-        semantic_preds = semantic_preds[filter_ids] # [N']
-        batch_idxs = batch_idxs[filter_ids] # [N']
-        shifted = shifted[filter_ids] # [N', 3]
+        coords = coords[filter_ids]  # [N', 3]
+        features = features[filter_ids]  # [N', C]
+        affinity = affinity_origin[filter_ids]  # [N', C']
+        append_feaures = append_feaures[filter_ids]  # [N', C']
+        semantic_preds = semantic_preds[filter_ids]  # [N']
+        batch_idxs = batch_idxs[filter_ids]  # [N']
+        shifted = shifted[filter_ids]  # [N', 3]
 
         # get the superpoint-wise input
-        superpoint_affinity = scatter_mean(affinity, superpoint, dim=0) # [num_superpoint, C]
-        superpoint_batch_idxs = scatter_mean(batch_idxs, superpoint, dim=0).int() # [num_superpoint]
-        superpoint_centers = scatter_mean(coords, superpoint, dim=0) # [num_superpoint, 3]
-        superpoint_features = scatter_mean(features, superpoint, dim=0) # [num_superpoint, C]
-        superpoint_features = self.superpoint_linear(superpoint_features) # [num_superpoint, C]
-        superpoint_append_feaures = scatter_mean(append_feaures, superpoint, dim=0) # [num_superpoint, C']
-        superpoint_count = torch.bincount(superpoint) # [num_superpoint]
+        superpoint_affinity = scatter_mean(affinity, superpoint, dim=0)  # [num_superpoint, C]
+        superpoint_batch_idxs = scatter_mean(batch_idxs, superpoint, dim=0).int()  # [num_superpoint]
+        superpoint_centers = scatter_mean(coords, superpoint, dim=0)  # [num_superpoint, 3]
+        superpoint_features = scatter_mean(features, superpoint, dim=0)  # [num_superpoint, C]
+        superpoint_features = self.superpoint_linear(superpoint_features)  # [num_superpoint, C]
+        superpoint_append_feaures = scatter_mean(append_feaures, superpoint, dim=0)  # [num_superpoint, C']
+        superpoint_count = torch.bincount(superpoint)  # [num_superpoint]
 
         if mode == "train":
-            instance_labels = instance_labels[filter_ids] # [N']
+            instance_labels = instance_labels[filter_ids]  # [N']
             num_inst = int(instance_labels.max() + 1)
-            _, superpoint_soft_inst_label = align_superpoint_label(instance_labels, superpoint, num_inst) # [num_superpoint], [num_superpoint, num_inst + 1]
+            _, superpoint_soft_inst_label = align_superpoint_label(instance_labels, superpoint,
+                                                                   num_inst)  # [num_superpoint], [num_superpoint, num_inst + 1]
         else:
             superpoint_soft_inst_label = superpoint_features
 
-        superpoint_features = torch.cat([superpoint_features, superpoint_append_feaures], dim=1) # [num_superpoint, C + C']
+        superpoint_features = torch.cat([superpoint_features, superpoint_append_feaures],
+                                        dim=1)  # [num_superpoint, C + C']
 
         # bottom-up build the hierarchical tree
         hierarchical_tree_list, tree_list, fusion_features_list, fusion_labels_list, nodes_list = build_hierarchical_tree(
@@ -285,15 +297,15 @@ class SSTNet(nn.Module):
         batch_idx_list = []
         for batch_idx in torch.unique(batch_idxs):
             batch_idx_list.extend([batch_idx] * len(fusion_features_list[batch_idx]))
-        batch_idxs = torch.Tensor(batch_idx_list).to(fusion_features_list[0].device) # [num_fusion]
-        
+        batch_idxs = torch.Tensor(batch_idx_list).to(fusion_features_list[0].device)  # [num_fusion]
+
         # predict fusion scores(for split)
-        scores_features = torch.cat(fusion_features_list) # [num_fusion, C]
-        fusion_scores = self.fusion_linear(scores_features).squeeze() # [num_fusion]
-        batch_idxs = torch.Tensor(batch_idx_list).to(fusion_scores.device) # [num_fusion]
+        scores_features = torch.cat(fusion_features_list)  # [num_fusion, C]
+        fusion_scores = self.fusion_linear(scores_features).squeeze()  # [num_fusion]
+        batch_idxs = torch.Tensor(batch_idx_list).to(fusion_scores.device)  # [num_fusion]
         fusion_labels = torch.cat(fusion_labels_list)
         ret["fusion"] = (fusion_scores, fusion_labels)
-        
+
         # top-down traversal and split
         if self.with_refine or prepare_flag:
             proposals_idx_bias = 0
@@ -364,7 +376,7 @@ class SSTNet(nn.Module):
                 ret["refine"] = (refine_scores, refine_labels)
 
             if prepare_flag and not empty_flag:
-                proposals_idx = torch.cat(proposals_idx_list) # [num_proposals, 2]
+                proposals_idx = torch.cat(proposals_idx_list)  # [num_proposals, 2]
                 proposals_offset = get_batch_offsets(proposals_idx[:, 0], proposals_idx[:, 0].max() + 1)
                 ret["proposals"] = proposals_idx, proposals_offset
 
@@ -373,9 +385,9 @@ class SSTNet(nn.Module):
                 input_map: torch.Tensor,
                 coords: torch.Tensor,
                 epoch: int,
-                extra_data: Optional[Dict]=None,
-                mode: str="train",
-                semantic_only: bool=False) -> Dict:
+                extra_data: Optional[Dict] = None,
+                mode: str = "train",
+                semantic_only: bool = False) -> Dict:
         r"""SSTNet forward
 
         Args:
@@ -399,18 +411,18 @@ class SSTNet(nn.Module):
         output = self.unet(output)
 
         output = self.output_layer(output)
-        output_feats = output.features[input_map.long()] # [N, m]
+        output_feats = output.features[input_map.long()]  # [N, m]
 
-        superpoint = extra_data["superpoint"] # [N]
+        superpoint = extra_data["superpoint"]  # [N]
 
         #### semantic segmentation
-        semantic_scores = self.linear(output_feats)   # [N, nClass], float
+        semantic_scores = self.linear(output_feats)  # [N, nClass], float
 
         ret["semantic_scores"] = semantic_scores
 
         #### offset
         pt_offsets_feats = self.offset(output_feats)
-        pt_offsets = self.offset_linear(pt_offsets_feats) # [N, 3], float32
+        pt_offsets = self.offset_linear(pt_offsets_feats)  # [N, 3], float32
         ret["pt_offsets"] = pt_offsets
 
         # deal with superpoint
@@ -418,7 +430,7 @@ class SSTNet(nn.Module):
         scene_list = extra_data["scene_list"]
         instance_labels = None
         if mode == "train":
-            instance_labels = extra_data["instance_labels"] # [N]
+            instance_labels = extra_data["instance_labels"]  # [N]
 
         prepare_flag = epoch > self.score_epochs
         fusion_flag = epoch > self.fusion_epochs
@@ -443,14 +455,15 @@ class SSTNet(nn.Module):
             proposals_idx, proposals_offset = ret["proposals"]
 
             #### proposals voxelization again
-            input_feats, inp_map = self.clusters_voxelization(proposals_idx, output_feats, coords, self.score_fullscale, self.score_scale, self.mode)
+            input_feats, inp_map = self.clusters_voxelization(proposals_idx, output_feats, coords, self.score_fullscale,
+                                                              self.score_scale, self.mode)
 
             #### score
             score = self.score_unet(input_feats)
             score = self.score_outputlayer(score)
             score_feats = score.features[inp_map.long()]  # [sum_points, C]
-            score_feats = scatter_max(score_feats, proposals_idx[:, 0].cuda().long(), dim=0)[0] # [num_prop, C]
-            proposal_scores = torch.sigmoid(self.score_linear(score_feats).squeeze()) # [num_prop]
+            score_feats = scatter_max(score_feats, proposals_idx[:, 0].cuda().long(), dim=0)[0]  # [num_prop, C]
+            proposal_scores = torch.sigmoid(self.score_linear(score_feats).squeeze())  # [num_prop]
 
             ret["proposal_scores"] = proposal_scores
 
@@ -471,4 +484,3 @@ def get_batch_offsets(batch_idxs: torch.Tensor, bs: int) -> torch.Tensor:
     batch_offsets = np.append(np.searchsorted(batch_idxs_np, range(bs)), len(batch_idxs_np))
     batch_offsets = torch.Tensor(batch_offsets).int().to(batch_idxs.device)
     return batch_offsets
-

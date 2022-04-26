@@ -31,7 +31,7 @@ def do_train(model, cfg, logger):
     lr_scheduler = gorilla.build_lr_scheduler(optimizer, cfg.lr_scheduler)
 
     # initialize criterion (Optional, can calculate in model forward)
-    criterion = gorilla.build_loss(cfg.loss)
+    criterion = gorilla.build_loss(cfg.loss, semantic_class=cfg.model.classes)
     
     # resume model/optimizer/scheduler
     iter = 1

@@ -48,7 +48,7 @@ model:
   blocks: 5
   block_reps: 2
   media: 32 # 16 or 32
-  classes: 18
+  classes: 20
   score_scale: 50 # the minimal voxel size is 2cm
   score_fullscale: 14
   score_mode: 4 # mean
