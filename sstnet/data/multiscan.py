@@ -44,8 +44,13 @@ class MultiScanInst(Dataset):
                  max_npoint: int=250000,
                  task: str="train",
                  with_elastic: bool=False,
+                 with_jitter: bool=True,
+                 with_flip: bool=True,
+                 with_rotation: bool=True,
+                 with_color_aug: bool=True,
                  test_mode: bool=False,
                  prefetch_superpoints: bool=True,
+                 use_normals: bool=False,
                  **kwargs):
         # initialize dataset parameters
         self.logger = gorilla.derive_logger(__name__)
@@ -55,6 +60,10 @@ class MultiScanInst(Dataset):
         self.max_npoint = max_npoint
         self.test_mode = test_mode
         self.with_elastic = with_elastic
+        self.with_jitter = with_jitter
+        self.with_flip = with_flip
+        self.with_rotation = with_rotation
+        self.with_color_aug = with_color_aug
         self.prefetch_superpoints = prefetch_superpoints
         self.task = task
         self.aug_flag = "train" in self.task
@@ -70,7 +79,6 @@ class MultiScanInst(Dataset):
         self.logger.info(f"{self.task} samples: {len(self.files)}")
         self.superpoints = {}
         if self.prefetch_superpoints:
-
             self.logger.info("begin prefetch superpoints...")
             sub_dir = "scans"
             path = os.path.join(self.data_root, sub_dir)
@@ -113,12 +121,12 @@ class MultiScanInst(Dataset):
 
     def __getitem__(self, index: int) -> Tuple:
         if "test" in self.task:
-            xyz_origin, rgb, faces, scene = self.files[index]
+            xyz_origin, rgb, vertex_normal, faces, scene = self.files[index]
             # construct fake label for label-lack testset
             semantic_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
             instance_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
         else:
-            xyz_origin, rgb, faces, semantic_label, instance_label, coords_shift, scene = self.files[index]
+            xyz_origin, rgb, vertex_normal, faces, semantic_label, instance_label, coords_shift, scene = self.files[index]
 
         if not self.prefetch_superpoints:
             self.get_superpoint(scene)
@@ -126,17 +134,17 @@ class MultiScanInst(Dataset):
 
         ### jitter / flip x / rotation
         if self.aug_flag:
-            xyz_middle = self.data_aug(xyz_origin, True, True, True)
+            xyz_middle, vertex_normal = self.data_aug(xyz_origin, vertex_normal, self.with_jitter, self.with_flip, self.with_rotation)
         else:
-            xyz_middle = self.data_aug(xyz_origin, False, False, False)
+            xyz_middle, vertex_normal = self.data_aug(xyz_origin, vertex_normal, False, False, False)
 
         ### scale
         xyz = xyz_middle * self.scale
 
         ### elastic
         if self.with_elastic:
-            xyz = elastic(xyz, 6 * self.scale // 50, 40 * self.scale / 50)
-            xyz = elastic(xyz, 20 * self.scale // 50, 160 * self.scale / 50)
+            xyz = elastic(xyz, vertex_normal, 6 * self.scale // 50, 40 * self.scale / 50)
+            xyz = elastic(xyz, vertex_normal, 20 * self.scale // 50, 160 * self.scale / 50)
 
         ### offset
         xyz_offset = xyz.min(0)
@@ -145,16 +153,13 @@ class MultiScanInst(Dataset):
         ### crop
         valid_idxs = np.ones(len(xyz_middle), dtype=np.bool)
         if not self.test_mode:
-            while(True):
-                tmp_xyz, valid_idxs = self.crop(xyz)
-                if valid_idxs.sum() != 0:
-                    xyz = tmp_xyz
-                    break
+            xyz, valid_idxs = self.crop(xyz)
 
 
         xyz_middle = xyz_middle[valid_idxs]
         xyz = xyz[valid_idxs]
         rgb = rgb[valid_idxs]
+        vertex_normal = vertex_normal[valid_idxs]
         semantic_label = semantic_label[valid_idxs]
 
         superpoint = np.unique(superpoint[valid_idxs], return_inverse=True)[1]
@@ -169,8 +174,12 @@ class MultiScanInst(Dataset):
         loc_offset = torch.from_numpy(xyz_offset).long()
         loc_float = torch.from_numpy(xyz_middle)
         feat = torch.from_numpy(rgb)
-        if self.aug_flag:
+        if self.with_color_aug:
             feat += torch.randn(3) * 0.1
+        if self.use_normals:
+            vertex_normal = vertex_normal / (np.linalg.norm(vertex_normal, axis=1).reshape(-1, 1) + np.finfo(float).eps)
+            vertex_normal = torch.from_numpy(vertex_normal)
+            feat = torch.cat(feat, vertex_normal, 1)
         semantic_label = torch.from_numpy(semantic_label)
         instance_label = torch.from_numpy(instance_label)
         superpoint = torch.from_numpy(superpoint)
@@ -178,7 +187,7 @@ class MultiScanInst(Dataset):
         inst_info = torch.from_numpy(inst_info)
         return scene, loc, loc_offset, loc_float, feat, semantic_label, instance_label, superpoint, inst_num, inst_info, inst_pointnum
 
-    def data_aug(self, xyz, jitter=False, flip=False, rot=False):
+    def data_aug(self, xyz, normal, jitter=False, flip=False, rot=False):
         m = np.eye(3)
         if jitter:
             m += np.random.randn(3, 3) * 0.1
@@ -187,7 +196,7 @@ class MultiScanInst(Dataset):
         if rot:
             theta = np.random.rand() * 2 * math.pi
             m = np.matmul(m, [[math.cos(theta), math.sin(theta), 0], [-math.sin(theta), math.cos(theta), 0], [0, 0, 1]])  # rotation
-        return np.matmul(xyz, m)
+        return np.matmul(xyz, m), np.matmul(normal, np.transpose(np.linalg.inv(m)))
 
     def crop(self, xyz: np.ndarray) -> Union[np.ndarray, np.ndarray]:
         r"""
@@ -199,18 +208,21 @@ class MultiScanInst(Dataset):
         Returns:
             Union[np.ndarray, np.ndarray]: processed point cloud and boolean valid indices
         """
-        xyz_offset = xyz.copy()
-        valid_idxs = (xyz_offset.min(1) >= 0)
-        assert valid_idxs.sum() == xyz.shape[0]
-
-        full_scale = np.array([self.full_scale[1]] * 3)
-        room_range = xyz.max(0) - xyz.min(0)
-        while (valid_idxs.sum() > self.max_npoint):
-            offset = np.clip(full_scale - room_range + 0.001, None, 0) * np.random.rand(3)
-            xyz_offset = xyz + offset
-            valid_idxs = (xyz_offset.min(1) >= 0) * ((xyz_offset < full_scale).sum(1) == 3)
-            full_scale[:2] -= 32
-
+        while True:  # HACK!
+            xyz_offset = xyz.copy()
+            valid_idxs = (xyz_offset.min(1) >= 0)
+            assert valid_idxs.sum() == xyz.shape[0]
+            if valid_idxs.sum() <= self.max_npoint:
+                break
+            full_scale = np.array([self.full_scale[1]] * 3)
+            room_range = xyz.max(0) - xyz.min(0)
+            while (valid_idxs.sum() > self.max_npoint):
+                offset = np.clip(full_scale - room_range + 0.001, None, 0) * np.random.rand(3)
+                xyz_offset = xyz + offset
+                valid_idxs = (xyz_offset.min(1) >= 0) * ((xyz_offset < full_scale).sum(1) == 3)
+                full_scale[:2] -= 32
+            if valid_idxs.sum() > (self.max_npoint // 2):
+                break
         return xyz_offset, valid_idxs
 
     def get_instance_info(self,

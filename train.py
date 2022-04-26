@@ -51,7 +51,7 @@ def do_train(model, cfg, logger):
         iter = meta.get("iter", iter) + 1
     
     # initialize train dataset
-    train_dataset = gorilla.build_dataset(cfg.dataset)
+    train_dataset = gorilla.build_dataset(cfg.dataset, cfg.model)
     train_dataloader = gorilla.build_dataloader(train_dataset,
                                                 cfg.dataloader,
                                                 shuffle=True,

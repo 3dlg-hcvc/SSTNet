@@ -31,13 +31,21 @@ dataset:
   scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
   max_npoint: 250000
   task: train
+
+  # data augmentations
   with_elastic: False
+  with_jitter: True
+  with_flip: True
+  with_rotation: True
+  with_color_aug: True
+
   prefetch_superpoints: False
 
 model:
   type: SSTNet
   input_channel: 3
   use_coords: True
+  use_normals: False
   blocks: 5
   block_reps: 2
   media: 32 # 16 or 32

@@ -1,12 +1,12 @@
 # Copyright (c) Gorilla-Lab. All rights reserved.
 import math
-
+import open3d as o3d
 import numpy as np
 import scipy.ndimage as ndimage
 import scipy.interpolate as interpolate
 import transforms3d.euler as euler
 
-def elastic(xyz, gran, mag):
+def elastic(xyz, normal, gran, mag):
     """Elastic distortion (from point group)
 
     Args:
@@ -17,6 +17,9 @@ def elastic(xyz, gran, mag):
     Returns:
         xyz: point cloud with elastic distortion
     """
+
+    pcd = o3d.geometry.PointCloud()
+
     blur0 = np.ones((3, 1, 1)).astype("float32") / 3
     blur1 = np.ones((1, 3, 1)).astype("float32") / 3
     blur2 = np.ones((1, 1, 3)).astype("float32") / 3
@@ -33,7 +36,11 @@ def elastic(xyz, gran, mag):
     interp = [interpolate.RegularGridInterpolator(ax, n, bounds_error=0, fill_value=0) for n in noise]
     def g(xyz_):
         return np.hstack([i(xyz_)[:,None] for i in interp])
-    return xyz + g(xyz) * mag
+    vertices = x + g(x) * mag
+    pcd.points = o3d.utility.Vector3dVector(vertices)
+    pcd.normals = o3d.utility.Vector3dVector(normal)
+    pcd.estimate_normals()  # re-calculate normals
+    return vertices, np.asarray(pcd.normals)
 
 
 # modify from PointGroup
