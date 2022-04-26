@@ -41,7 +41,8 @@ class SSTNet(nn.Module):
         self.score_scale = score_scale
         self.score_fullscale = score_fullscale
         self.mode = score_mode
-
+        self.dataset_name = kwargs.pop("type")
+        self.data_type = kwargs.pop("data_type")
         self.fusion_epochs = fusion_epochs
         self.score_epochs = score_epochs
 
@@ -254,7 +255,15 @@ class SSTNet(nn.Module):
             append_feaures = append_feaures.detach()
 
         # filter out according to semantic prediction labels
-        filter_ids = torch.nonzero(semantic_preds > 1).view(-1)
+        if self.dataset_name == "ScanNetV2Inst":
+            filter_ids = torch.nonzero(semantic_preds > 1).view(-1)  # 0: floor, 1: wall
+        elif self.dataset_name == "MultiScanInst" and self.data_type == "inst":
+            filter_ids = torch.nonzero(semantic_preds > 2).view(-1)  # 0: floor, 1: ceiling, 2: wall
+        elif self.dataset_name == "MultiScanInst" and self.data_type == "part":
+            filter_ids = torch.nonzero(semantic_preds > -1).view(-1)
+        else:
+            raise NotImplementedError
+
         superpoint = torch.unique(superpoint[filter_ids], return_inverse=True)[1]
         coords = coords[filter_ids]  # [N', 3]
         features = features[filter_ids]  # [N', C]

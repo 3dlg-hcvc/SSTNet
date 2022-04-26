@@ -26,7 +26,8 @@ dataloader:
 
 dataset:
   type: MultiScanInst
-  data_root: data/multiscan
+  data_type: inst
+  data_root: data/multiscan_inst
   full_scale: [128, 512]
   scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
   max_npoint: 250000

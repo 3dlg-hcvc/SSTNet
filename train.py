@@ -1,26 +1,20 @@
 # Copyright (c) Gorilla-Lab. All rights reserved.
 import glob
 import os.path as osp
-
 import torch
 import gorilla
 import gorilla3d
 import spconv
-
 import sstnet
 import pointgroup_ops
+
 
 def get_parser():
     # the default argument parser contains some 
     # essential parameters for distributed
     parser = gorilla.core.default_argument_parser()
-    parser.add_argument("--config",
-                        type=str,
-                        default="config/default.yaml",
-                        help="path to config file")
-
+    parser.add_argument("--config", type=str, help="path to config file")
     args_cfg = parser.parse_args()
-
     return args_cfg
 
 
@@ -32,15 +26,15 @@ def do_train(model, cfg, logger):
 
     # initialize criterion (Optional, can calculate in model forward)
     criterion = gorilla.build_loss(cfg.loss, semantic_class=cfg.model.classes)
-    
+
     # resume model/optimizer/scheduler
     iter = 1
     checkpoint, epoch = get_checkpoint(cfg.log_dir)
-    if gorilla.is_filepath(checkpoint): # read valid checkpoint file
+    if gorilla.is_filepath(checkpoint):  # read valid checkpoint file
         # meta is the dict save some necessary information (last epoch/iteration, acc, loss)
         meta = gorilla.resume(model=model,
                               filename=checkpoint,
-                              optimizer=optimizer,     # optimizer and scheduler is optional
+                              optimizer=optimizer,  # optimizer and scheduler is optional
                               scheduler=lr_scheduler,  # to resume (can not give these paramters)
                               resume_optimizer=True,
                               resume_scheduler=True,
@@ -49,7 +43,7 @@ def do_train(model, cfg, logger):
         # get epoch from meta (Optional)
         epoch = meta.get("epoch", epoch) + 1
         iter = meta.get("iter", iter) + 1
-    
+
     # initialize train dataset
     train_dataset = gorilla.build_dataset(cfg.dataset, cfg.model)
     train_dataloader = gorilla.build_dataloader(train_dataset,
@@ -59,7 +53,7 @@ def do_train(model, cfg, logger):
                                                 drop_last=True)
 
     # initialize tensorboard (Optional) TODO: integrating the tensorborad manager
-    writer = gorilla.TensorBoardWriter(cfg.log_dir) # tensorboard writer
+    writer = gorilla.TensorBoardWriter(cfg.log_dir)  # tensorboard writer
 
     # initialize timers (Optional)
     iter_timer = gorilla.Timer()
@@ -72,12 +66,12 @@ def do_train(model, cfg, logger):
 
     while epoch <= cfg.data.epochs:
         for i, batch in enumerate(train_dataloader):
-            torch.cuda.empty_cache() # (empty cuda cache, Optional)
+            torch.cuda.empty_cache()  # (empty cuda cache, Optional)
             # calculate data loading time
             data_time.update(iter_timer.since_last())
             # cuda manually (TODO: integrating the data cuda operation)
             ##### prepare input and forward
-            coords = batch["locs"].cuda() # [N, 1 + 3], long, cuda, dimension 0 for batch_idx
+            coords = batch["locs"].cuda()  # [N, 1 + 3], long, cuda, dimension 0 for batch_idx
             locs_offset = batch["locs_offset"].cuda()  # [B, 3], long, cuda
             voxel_coords = batch["voxel_locs"].cuda()  # [M, 1 + 3], long, cuda
             p2v_map = batch["p2v_map"].cuda()  # [N], int, cuda
@@ -124,7 +118,6 @@ def do_train(model, cfg, logger):
                                              voxel_coords.int(),
                                              spatial_shape,
                                              cfg.dataloader.batch_size)
-
             ret = model(input_,
                         p2v_map,
                         coords_float,
@@ -147,7 +140,7 @@ def do_train(model, cfg, logger):
                                       instance_pointnum)
 
             loss_inp["superpoint"] = superpoint
-            loss_inp["empty_flag"] = ret["empty_flag"] # avoid stack error
+            loss_inp["empty_flag"] = ret["empty_flag"]  # avoid stack error
 
             if fusion_flag:
                 loss_inp["fusion"] = ret["fusion"]
@@ -187,12 +180,13 @@ def do_train(model, cfg, logger):
 
             # calculate time and reset timer(Optional)
             iter_time.update(iter_timer.since_start())
-            iter_timer.reset() # record the iteration time and reset timer
+            iter_timer.reset()  # record the iteration time and reset timer
 
             # TODO: the time manager will be integrated into gorilla-core
             # calculate remain time(Optional)
             remain_iter = (cfg.data.epochs - epoch + 1) * len(train_dataloader) + i + 1
-            remain_time = gorilla.convert_seconds(remain_iter * iter_time.avg) # convert seconds into "hours:minutes:sceonds"
+            remain_time = gorilla.convert_seconds(
+                remain_iter * iter_time.avg)  # convert seconds into "hours:minutes:sceonds"
 
             print(f"epoch: {epoch}/{cfg.data.epochs} iter: {i + 1}/{len(train_dataloader)} "
                   f"lr: {lr:4f} loss: {loss_buffer.latest:.4f}({loss_buffer.avg:.4f}) "
@@ -203,7 +197,8 @@ def do_train(model, cfg, logger):
         lr_scheduler.step()
 
         # log the epoch information
-        logger.info(f"epoch: {epoch}/{cfg.data.epochs}, train loss: {loss_buffer.avg}, time: {epoch_timer.since_start()}s")
+        logger.info(
+            f"epoch: {epoch}/{cfg.data.epochs}, train loss: {loss_buffer.avg}, time: {epoch_timer.since_start()}s")
         iter_time.clear()
         data_time.clear()
         loss_buffer.clear()
@@ -211,7 +206,7 @@ def do_train(model, cfg, logger):
         # write the important information into meta
         meta = {"epoch": epoch,
                 "iter": iter}
-    
+
         # save checkpoint
         checkpoint = osp.join(cfg.log_dir, "epoch_{0:05d}.pth".format(epoch))
         if (epoch == fusion_epochs) or (epoch == fusion_epochs):
@@ -253,6 +248,7 @@ def get_checkpoint(log_dir, epoch=0, checkpoint=""):
 
     return checkpoint, epoch + 1
 
+
 def main(args):
     # read config file
     cfg = gorilla.Config.fromfile(args.config)
@@ -272,7 +268,7 @@ def main(args):
     cfg = gorilla.config.merge_cfg_and_args(cfg, args)
 
     cfg.log_dir = log_dir
-    
+
     # set random seed
     seed = cfg.get("seed", 0)
     gorilla.set_random_seed(seed)
@@ -281,13 +277,14 @@ def main(args):
     logger.info("=> creating model ...")
 
     # create model
-    model = gorilla.build_model(cfg.model)
+    model = gorilla.build_model(cfg.model, cfg.dataset)
     model = model.cuda()
     if args.num_gpus > 1:
         # convert the BatchNorm in model as SyncBatchNorm (NOTE: this will be error for low-version pytorch!!!)
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         # DDP wrap model
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gorilla.get_local_rank()], find_unused_parameters=True)
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gorilla.get_local_rank()],
+                                                          find_unused_parameters=True)
 
     # logger.info("Model:\n{}".format(model)) (Optional print model)
 
@@ -312,5 +309,5 @@ if __name__ == "__main__":
         num_machines=args.num_machines,
         machine_rank=args.machine_rank,
         dist_url=args.dist_url,
-        args=(args,) # use tuple to wrap
+        args=(args,)  # use tuple to wrap
     )

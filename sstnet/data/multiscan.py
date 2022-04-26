@@ -32,25 +32,25 @@ class GetSuperpoint(mp.Process):
         vertices = torch.from_numpy(np.array(mesh.vertices).astype(np.float32))
         faces = torch.from_numpy(np.array(mesh.triangles).astype(np.int64))
         superpoint = segmentator.segment_mesh(vertices, faces).numpy()
-        self.mdict.update({self.scene: superpoint})        
+        self.mdict.update({self.scene: superpoint})
 
 
 @gorilla.DATASETS.register_module(force=True)
 class MultiScanInst(Dataset):
     def __init__(self,
                  data_root: str,
-                 full_scale: List[int]=[128, 512],
-                 scale: int=50,
-                 max_npoint: int=250000,
-                 task: str="train",
-                 with_elastic: bool=False,
-                 with_jitter: bool=True,
-                 with_flip: bool=True,
-                 with_rotation: bool=True,
-                 with_color_aug: bool=True,
-                 test_mode: bool=False,
-                 prefetch_superpoints: bool=True,
-                 use_normals: bool=False,
+                 full_scale: List[int] = [128, 512],
+                 scale: int = 50,
+                 max_npoint: int = 250000,
+                 task: str = "train",
+                 with_elastic: bool = False,
+                 with_jitter: bool = True,
+                 with_flip: bool = True,
+                 with_rotation: bool = True,
+                 with_color_aug: bool = True,
+                 test_mode: bool = False,
+                 prefetch_superpoints: bool = True,
+                 use_normals: bool = False,
                  **kwargs):
         # initialize dataset parameters
         self.logger = gorilla.derive_logger(__name__)
@@ -64,15 +64,14 @@ class MultiScanInst(Dataset):
         self.with_flip = with_flip
         self.with_rotation = with_rotation
         self.with_color_aug = with_color_aug
+        self.use_normals = use_normals
         self.prefetch_superpoints = prefetch_superpoints
         self.task = task
         self.aug_flag = "train" in self.task
-        
+
         # load files
         self.load_files()
 
-
-    
     def load_files(self):
         file_names = sorted(glob.glob(os.path.join(self.data_root, self.task, "*.pth")))
         self.files = [torch.load(i) for i in gorilla.track(file_names)]
@@ -94,14 +93,13 @@ class MultiScanInst(Dataset):
                 while len(mdict) != len(self.files):
                     time.sleep(0.1)
                 self.superpoints.update(mdict)
-        
+
         # # single processing (comparison)
         # if self.prefetch_superpoints:
         #     self.logger.info("prefetch superpoints:")
         #     for f in gorilla.utils.track(self.files):
         #         self.get_superpoint(f[-1])
         # import ipdb; ipdb.set_trace()
-
 
     def get_superpoint(self, scene: str):
         if scene in self.superpoints:
@@ -115,7 +113,6 @@ class MultiScanInst(Dataset):
         superpoint = segmentator.segment_mesh(vertices, faces).numpy()
         self.superpoints[scene] = superpoint
 
-
     def __len__(self):
         return len(self.files)
 
@@ -126,7 +123,8 @@ class MultiScanInst(Dataset):
             semantic_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
             instance_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
         else:
-            xyz_origin, rgb, vertex_normal, faces, semantic_label, instance_label, coords_shift, scene = self.files[index]
+            xyz_origin, rgb, vertex_normal, faces, semantic_label, instance_label, coords_shift, scene = self.files[
+                index]
 
         if not self.prefetch_superpoints:
             self.get_superpoint(scene)
@@ -134,7 +132,8 @@ class MultiScanInst(Dataset):
 
         ### jitter / flip x / rotation
         if self.aug_flag:
-            xyz_middle, vertex_normal = self.data_aug(xyz_origin, vertex_normal, self.with_jitter, self.with_flip, self.with_rotation)
+            xyz_middle, vertex_normal = self.data_aug(xyz_origin, vertex_normal, self.with_jitter, self.with_flip,
+                                                      self.with_rotation)
         else:
             xyz_middle, vertex_normal = self.data_aug(xyz_origin, vertex_normal, False, False, False)
 
@@ -155,7 +154,6 @@ class MultiScanInst(Dataset):
         if not self.test_mode:
             xyz, valid_idxs = self.crop(xyz)
 
-
         xyz_middle = xyz_middle[valid_idxs]
         xyz = xyz[valid_idxs]
         rgb = rgb[valid_idxs]
@@ -168,8 +166,8 @@ class MultiScanInst(Dataset):
         ### get instance information
         inst_num, inst_infos = self.get_instance_info(xyz_middle, instance_label.astype(np.int32))
         inst_info = inst_infos["instance_info"]  # [n, 9], (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
-        inst_pointnum = inst_infos["instance_pointnum"]   # [num_inst], list
-        
+        inst_pointnum = inst_infos["instance_pointnum"]  # [num_inst], list
+
         loc = torch.from_numpy(xyz).long()
         loc_offset = torch.from_numpy(xyz_offset).long()
         loc_float = torch.from_numpy(xyz_middle)
@@ -195,7 +193,8 @@ class MultiScanInst(Dataset):
             m[0][0] *= np.random.randint(0, 2) * 2 - 1  # flip x randomly
         if rot:
             theta = np.random.rand() * 2 * math.pi
-            m = np.matmul(m, [[math.cos(theta), math.sin(theta), 0], [-math.sin(theta), math.cos(theta), 0], [0, 0, 1]])  # rotation
+            m = np.matmul(m, [[math.cos(theta), math.sin(theta), 0], [-math.sin(theta), math.cos(theta), 0],
+                              [0, 0, 1]])  # rotation
         return np.matmul(xyz, m), np.matmul(normal, np.transpose(np.linalg.inv(m)))
 
     def crop(self, xyz: np.ndarray) -> Union[np.ndarray, np.ndarray]:
@@ -239,8 +238,9 @@ class MultiScanInst(Dataset):
             Union[int, Dict]: the amount of instances andinformations
                               (coordinates and the number of points) of instances
         """
-        instance_info = np.ones((xyz.shape[0], 9), dtype=np.float32) * -100.0   # [n, 9], float, (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
-        instance_pointnum = []   # [num_inst], int
+        instance_info = np.ones((xyz.shape[0], 9),
+                                dtype=np.float32) * -100.0  # [n, 9], float, (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
+        instance_pointnum = []  # [num_inst], int
         instance_num = int(instance_label.max()) + 1
         for i_ in range(instance_num):
             inst_idx_i = np.where(instance_label == i_)
@@ -301,7 +301,7 @@ class MultiScanInst(Dataset):
         total_inst_num = 0
         for i, data in enumerate(batch):
             scene, loc, loc_offset, loc_float, feat, semantic_label, instance_label, superpoint, inst_num, inst_info, inst_pointnum = data
-            
+
             scene_list.append(scene)
             superpoint += superpoint_bias
             superpoint_bias += (superpoint.max() + 1)
@@ -327,18 +327,18 @@ class MultiScanInst(Dataset):
         ### merge all the scenes in the batchd
         batch_offsets = torch.tensor(batch_offsets, dtype=torch.int)  # int [B+1]
 
-        locs = torch.cat(locs, 0)                                # long [N, 1 + 3], the batch item idx is put in locs[:, 0]
+        locs = torch.cat(locs, 0)  # long [N, 1 + 3], the batch item idx is put in locs[:, 0]
         locs_float = torch.cat(locs_float, 0).to(torch.float32)  # float [N, 3]
-        superpoint = torch.cat(superpoint_list, 0).long()               # long[N]
-        feats = torch.cat(feats, 0)                              # float [N, C]
-        semantic_labels = torch.cat(semantic_labels, 0).long()                     # long [N]
-        instance_labels = torch.cat(instance_labels, 0).long()   # long [N]
-        locs_offset = torch.stack(loc_offset_list)               # long [B, 3]
+        superpoint = torch.cat(superpoint_list, 0).long()  # long[N]
+        feats = torch.cat(feats, 0)  # float [N, C]
+        semantic_labels = torch.cat(semantic_labels, 0).long()  # long [N]
+        instance_labels = torch.cat(instance_labels, 0).long()  # long [N]
+        locs_offset = torch.stack(loc_offset_list)  # long [B, 3]
 
-        instance_infos = torch.cat(instance_infos, 0).to(torch.float32)       # float [N, 9] (meanxyz, minxyz, maxxyz)
+        instance_infos = torch.cat(instance_infos, 0).to(torch.float32)  # float [N, 9] (meanxyz, minxyz, maxxyz)
         instance_pointnum = torch.tensor(instance_pointnum, dtype=torch.int)  # int [total_num_inst]
 
-        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None) # long [3]
+        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None)  # long [3]
 
         ### voxelize
         batch_size = len(batch)
@@ -350,4 +350,3 @@ class MultiScanInst(Dataset):
                 "semantic_labels": semantic_labels, "instance_labels": instance_labels,
                 "instance_info": instance_infos, "instance_pointnum": instance_pointnum,
                 "offsets": batch_offsets, "spatial_shape": spatial_shape, "superpoint": superpoint}
-
