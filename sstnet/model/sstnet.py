@@ -20,6 +20,8 @@ from .func_helper import *
 class SSTNet(nn.Module):
     def __init__(self,
                  classes: int,
+                 dataset_name: str,
+                 granularity: str,
                  input_channel: int = 3,
                  use_coords: bool = True,
                  use_normals: bool = False,
@@ -41,8 +43,8 @@ class SSTNet(nn.Module):
         self.score_scale = score_scale
         self.score_fullscale = score_fullscale
         self.mode = score_mode
-        self.dataset_name = kwargs.pop("type")
-        self.data_type = kwargs.pop("data_type")
+        self.dataset_name = dataset_name
+        self.granularity = granularity
         self.fusion_epochs = fusion_epochs
         self.score_epochs = score_epochs
 
@@ -257,9 +259,9 @@ class SSTNet(nn.Module):
         # filter out according to semantic prediction labels
         if self.dataset_name == "ScanNetV2Inst":
             filter_ids = torch.nonzero(semantic_preds > 1).view(-1)  # 0: floor, 1: wall
-        elif self.dataset_name == "MultiScanInst" and self.data_type == "inst":
+        elif self.dataset_name == "MultiScanInst" and self.granularity == "inst":
             filter_ids = torch.nonzero(semantic_preds > 2).view(-1)  # 0: floor, 1: ceiling, 2: wall
-        elif self.dataset_name == "MultiScanInst" and self.data_type == "part":
+        elif self.dataset_name == "MultiScanInst" and self.granularity == "part":
             filter_ids = torch.nonzero(semantic_preds > -1).view(-1)
         else:
             raise NotImplementedError

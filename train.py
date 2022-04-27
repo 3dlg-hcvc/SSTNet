@@ -25,7 +25,7 @@ def do_train(model, cfg, logger):
     lr_scheduler = gorilla.build_lr_scheduler(optimizer, cfg.lr_scheduler)
 
     # initialize criterion (Optional, can calculate in model forward)
-    criterion = gorilla.build_loss(cfg.loss, semantic_class=cfg.model.classes)
+    criterion = gorilla.build_loss({**cfg.loss, "semantic_class": cfg.model.classes})
 
     # resume model/optimizer/scheduler
     iter = 1
@@ -45,7 +45,7 @@ def do_train(model, cfg, logger):
         iter = meta.get("iter", iter) + 1
 
     # initialize train dataset
-    train_dataset = gorilla.build_dataset(cfg.dataset, cfg.model)
+    train_dataset = gorilla.build_dataset({**cfg.dataset, "use_normals": cfg.model.use_normals})
     train_dataloader = gorilla.build_dataloader(train_dataset,
                                                 cfg.dataloader,
                                                 shuffle=True,
@@ -277,7 +277,7 @@ def main(args):
     logger.info("=> creating model ...")
 
     # create model
-    model = gorilla.build_model(cfg.model, cfg.dataset)
+    model = gorilla.build_model({**cfg.model, "dataset_name": cfg.dataset.type, "granularity": cfg.dataset.granularity})
     model = model.cuda()
     if args.num_gpus > 1:
         # convert the BatchNorm in model as SyncBatchNorm (NOTE: this will be error for low-version pytorch!!!)

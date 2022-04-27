@@ -3,3 +3,5 @@ scipy
 treelib
 torch_scatter
 open3d
+opencv-python
+numba
