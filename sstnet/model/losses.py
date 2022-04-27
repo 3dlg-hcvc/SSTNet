@@ -29,7 +29,7 @@ class SSTLoss(nn.Module):
         self.fg_thresh = fg_thresh
         self.semantic_dice = semantic_dice
         self.loss_weight = loss_weight
-        self.semantic_classes = semantic_class
+        self.semantic_class = semantic_class
         #### criterion
         self.semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.ignore_label)
         self.score_criterion = nn.BCELoss(reduction="none")
