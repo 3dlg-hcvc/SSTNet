@@ -15,12 +15,12 @@ class SSTLoss(nn.Module):
     def __init__(self,
                  ignore_label: int,
                  semantic_class: int,
-                 fusion_epochs: int=128,
-                 score_epochs: int=160,
-                 bg_thresh: float=0.25,
-                 fg_thresh: float=0.75,
-                 semantic_dice: bool=True,
-                 loss_weight: List[float]=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]):
+                 fusion_epochs: int,
+                 score_epochs: int,
+                 bg_thresh: float,
+                 fg_thresh: float,
+                 semantic_dice: bool,
+                 loss_weight: List[float]):
         super().__init__()
         self.ignore_label = ignore_label
         self.fusion_epochs = fusion_epochs

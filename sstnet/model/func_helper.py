@@ -1,13 +1,11 @@
 # Copyright (c) Gorilla-Lab. All rights reserved.
 from typing import Optional, List
-
 import torch
 import torch.nn.functional as F
 import numpy as np
 from scipy.sparse import coo_matrix
 from torch_scatter import scatter_add
 from treelib import Tree
-
 import htree
 from cluster.hierarchy import linkage
 
@@ -16,8 +14,8 @@ class Node:
     def __init__(self,
                  feature: torch.Tensor,
                  center: torch.Tensor,
-                 soft_label: Optional[torch.Tensor]=None,
-                 num: Optional[int]=1) -> None:
+                 soft_label: Optional[torch.Tensor] = None,
+                 num: Optional[int] = 1) -> None:
         super().__init__()
         self.feature = feature
         self.center = center
@@ -30,7 +28,7 @@ def build_hierarchical_tree(affinity: torch.Tensor,
                             centers: torch.Tensor,
                             affinity_count: torch.Tensor,
                             batch_idxs: torch.Tensor,
-                            soft_label: Optional[torch.Tensor]=None):
+                            soft_label: Optional[torch.Tensor] = None):
     r"""
     build the hierarchical tree
 
@@ -54,15 +52,16 @@ def build_hierarchical_tree(affinity: torch.Tensor,
     for batch_idx in torch.unique(batch_idxs):
         ids = (batch_idxs == batch_idx)
         num_batch = ids.sum()
-        batch_centers = centers[ids] # [num_batch, 3]
-        batch_affinity = affinity[ids] # [num_batch, C]
-        batch_features = features[ids] # [num_batch, C']
+        batch_centers = centers[ids]  # [num_batch, 3]
+        batch_affinity = affinity[ids]  # [num_batch, C]
+        batch_features = features[ids]  # [num_batch, C']
         batch_soft_label = soft_label[ids]
 
         # build tree by affinity
-        batch_affinity_count = affinity_count[ids] # [num_batch]
+        batch_affinity_count = affinity_count[ids]  # [num_batch]
         affinity_np = batch_affinity.detach().cpu().numpy()
-        affinity_np = np.concatenate([affinity_np, batch_affinity_count[:, None].cpu().numpy()], axis=1) # [num_leaves, C+1]
+        affinity_np = np.concatenate([affinity_np, batch_affinity_count[:, None].cpu().numpy()],
+                                     axis=1)  # [num_leaves, C+1]
         tree_connection = linkage(affinity_np, method="average", with_observation=True)
         tree_connection = tree_connection[:, :2].astype(np.int)
 
@@ -71,7 +70,7 @@ def build_hierarchical_tree(affinity: torch.Tensor,
                           batch_centers[i],
                           batch_soft_label[i],
                           batch_affinity_count[i]) for i in range(num_batch)]
-        
+
         num_nodes = tree_connection.max() + 1
 
         connection = tree_connection.tolist()
@@ -88,10 +87,13 @@ def build_hierarchical_tree(affinity: torch.Tensor,
         fusion_ids = torch.Tensor(fusion_ids).long().to(affinity.device)
 
         # record the fusion nodes
-        fusion_affinity_count = scatter_add(batch_affinity_count[fusion_leaves], fusion_ids, dim=0) # [num_fusion]
-        node_features = get_fusion_property(batch_features, batch_affinity_count, fusion_leaves, fusion_ids, fusion_affinity_count)
-        node_centers = get_fusion_property(batch_centers, batch_affinity_count, fusion_leaves, fusion_ids, fusion_affinity_count)
-        node_soft_label = get_fusion_property(batch_soft_label, batch_affinity_count, fusion_leaves, fusion_ids, fusion_affinity_count)
+        fusion_affinity_count = scatter_add(batch_affinity_count[fusion_leaves], fusion_ids, dim=0)  # [num_fusion]
+        node_features = get_fusion_property(batch_features, batch_affinity_count, fusion_leaves, fusion_ids,
+                                            fusion_affinity_count)
+        node_centers = get_fusion_property(batch_centers, batch_affinity_count, fusion_leaves, fusion_ids,
+                                           fusion_affinity_count)
+        node_soft_label = get_fusion_property(batch_soft_label, batch_affinity_count, fusion_leaves, fusion_ids,
+                                              fusion_affinity_count)
 
         # addd intermidiate tree node
         for i in range(len(connection)):
@@ -103,38 +105,43 @@ def build_hierarchical_tree(affinity: torch.Tensor,
                     fusion_affinity_count[i]))
 
         # get the left and right children's property for each node
-        left_affinity_count = scatter_add(batch_affinity_count[left_leaves], left_ids, dim=0) # [num_fusion]
-        left_features = get_fusion_property(batch_features, batch_affinity_count, left_leaves, left_ids, left_affinity_count)
-        left_soft_label = get_fusion_property(batch_soft_label, batch_affinity_count, left_leaves, left_ids, left_affinity_count)
-        right_affinity_count = scatter_add(batch_affinity_count[right_leaves], right_ids, dim=0) # [num_fusion]
-        right_features = get_fusion_property(batch_features, batch_affinity_count, right_leaves, right_ids, right_affinity_count)
-        right_soft_label = get_fusion_property(batch_soft_label, batch_affinity_count, right_leaves, right_ids, right_affinity_count)
+        left_affinity_count = scatter_add(batch_affinity_count[left_leaves], left_ids, dim=0)  # [num_fusion]
+        left_features = get_fusion_property(batch_features, batch_affinity_count, left_leaves, left_ids,
+                                            left_affinity_count)
+        left_soft_label = get_fusion_property(batch_soft_label, batch_affinity_count, left_leaves, left_ids,
+                                              left_affinity_count)
+        right_affinity_count = scatter_add(batch_affinity_count[right_leaves], right_ids, dim=0)  # [num_fusion]
+        right_features = get_fusion_property(batch_features, batch_affinity_count, right_leaves, right_ids,
+                                             right_affinity_count)
+        right_soft_label = get_fusion_property(batch_soft_label, batch_affinity_count, right_leaves, right_ids,
+                                               right_affinity_count)
 
         features_list = torch.cat([torch.cat([left_features, right_features], dim=1)[:, None, :],
                                    torch.cat([right_features, left_features], dim=1)[:, None, :]],
-                                   dim=1) # [num_nodes, 2, C * 2]
-        scores_features = features_list.view(-1, features_list.shape[-1]) # [num_nodes * 2, C * 2]
-        fusion_scores = (left_soft_label * right_soft_label).sum(dim=1) # [num_nodes]
-        labels = fusion_scores[:, None].repeat(1, 2).view(-1) # [num_nodes * 2]
-        node_id_list = list(range(num_batch, num_batch + len(tree_connection))) # [num_nodes]
+                                  dim=1)  # [num_nodes, 2, C * 2]
+        scores_features = features_list.view(-1, features_list.shape[-1])  # [num_nodes * 2, C * 2]
+        fusion_scores = (left_soft_label * right_soft_label).sum(dim=1)  # [num_nodes]
+        labels = fusion_scores[:, None].repeat(1, 2).view(-1)  # [num_nodes * 2]
+        node_id_list = list(range(num_batch, num_batch + len(tree_connection)))  # [num_nodes]
 
         # inverse range to realize traverse top-down
         num_all_nodes = len(node_id_list)
-        scores_features = scores_features[range(-1, -(num_all_nodes*2+1), -1)] # [num_nodes * 2, C]
-        labels = labels[range(-1, -(num_all_nodes*2+1), -1)] # [num_nodes * 2]
-        nodes = torch.Tensor(node_id_list).to(scores_features.device)[range(-1, -(num_all_nodes+1), -1)] # [num_nodes]
+        scores_features = scores_features[range(-1, -(num_all_nodes * 2 + 1), -1)]  # [num_nodes * 2, C]
+        labels = labels[range(-1, -(num_all_nodes * 2 + 1), -1)]  # [num_nodes * 2]
+        nodes = torch.Tensor(node_id_list).to(scores_features.device)[
+            range(-1, -(num_all_nodes + 1), -1)]  # [num_nodes]
         scores_features_list.append(scores_features)
         labels_list.append(labels)
         nodes_list.append(nodes)
 
         tree = Tree()
-        tree.create_node(num_nodes, num_nodes, data=node_list[num_nodes]) # root node
+        tree.create_node(num_nodes, num_nodes, data=node_list[num_nodes])  # root node
         for connection in tree_connection[::-1]:
             c0, c1 = connection
             tree.create_node(c0, c0, parent=num_nodes, data=node_list[c0])
             tree.create_node(c1, c1, parent=num_nodes, data=node_list[c1])
             num_nodes -= 1
-        
+
         tree_list.append(tree)
 
     return hierarchical_tree_list, tree_list, scores_features_list, labels_list, nodes_list
@@ -158,17 +165,14 @@ def get_fusion_property(properties: torch.Tensor,
         torch.Tensor: [description]
     """
     num_leaves = leaves.shape[0]
-    properties = properties[leaves].view(num_leaves, -1) # [num_leaves, C]
-    property_gain = properties * count[leaves].view(num_leaves, 1) # [num_leaves, C]
-    properties = scatter_add(property_gain, ids, dim=0) # [num_nodes, C]
-    properties = properties / nodes_count.view(-1, 1) # [num_nodes, C]
+    properties = properties[leaves].view(num_leaves, -1)  # [num_leaves, C]
+    property_gain = properties * count[leaves].view(num_leaves, 1)  # [num_leaves, C]
+    properties = scatter_add(property_gain, ids, dim=0)  # [num_nodes, C]
+    properties = properties / nodes_count.view(-1, 1)  # [num_nodes, C]
     return properties
 
 
-def align_superpoint_label(labels: torch.Tensor,
-                           superpoint: torch.Tensor,
-                           num_label: int,
-                           ignore_label: int=-100):
+def align_superpoint_label(labels: torch.Tensor, superpoint: torch.Tensor, num_label: int, ignore_label: int):
     r"""refine semantic segmentation by superpoint
 
     Args:
@@ -181,22 +185,21 @@ def align_superpoint_label(labels: torch.Tensor,
         label: (torch.Tensor, [num_superpoint]): superpoint's label
         label_scores: (torch.Tensor, [num_superpoint, num_label + 1]): superpoint's label scores
     """
-    row = superpoint.cpu().numpy() # superpoint has been compression
+    row = superpoint.cpu().numpy()  # superpoint has been compression
     col = labels.cpu().numpy()
     col[col < 0] = num_label
     data = np.ones(len(superpoint))
     shape = (len(np.unique(row)), num_label + 1)
     label_map = coo_matrix((data, (row, col)), shape=shape).toarray()  # [num_superpoint, num_label + 1]
     label = torch.Tensor(np.argmax(label_map, axis=1)).long().to(labels.device)  # [num_superpoint]
-    label[label == num_label] = ignore_label # ignore_label
-    label_scores = torch.Tensor(label_map / label_map.sum(axis=1)[:, None]).to(labels.device) # [num_superpoint, num_label + 1]
+    label[label == num_label] = ignore_label  # ignore_label
+    label_scores = torch.Tensor(label_map / label_map.sum(axis=1)[:, None]).to(
+        labels.device)  # [num_superpoint, num_label + 1]
 
     return label, label_scores
 
 
-def voting_semantic_segmentation(semantic_preds: torch.Tensor,
-                                 superpoint: torch.Tensor,
-                                 num_semantic: int):
+def voting_semantic_segmentation(semantic_preds: torch.Tensor, superpoint: torch.Tensor, num_semantic: int):
     r"""get semantic segmentation by superpoint voting
 
     Args:
@@ -212,15 +215,13 @@ def voting_semantic_segmentation(semantic_preds: torch.Tensor,
     data = np.ones(len(superpoint))
     shape = (len(np.unique(row)), num_semantic)
     semantic_map = coo_matrix((data, (row, col)), shape=shape).toarray()  # [num_superpoint, num_semantic]
-    semantic_map = torch.Tensor(np.argmax(semantic_map, axis=1)).to(semantic_preds.device) # [num_superpoint]
+    semantic_map = torch.Tensor(np.argmax(semantic_map, axis=1)).to(semantic_preds.device)  # [num_superpoint]
     replace_semantic = semantic_map[torch.Tensor(row).to(semantic_preds.device).long()]
 
     return replace_semantic
 
 
-def traversal_cluster(tree: Tree,
-                      nodes: List[int],
-                      fusion_labels: List[bool]):
+def traversal_cluster(tree: Tree, nodes: List[int], fusion_labels: List[bool]):
     r"""
     get the cluster result by top-down bfs traversing hierachical tree
 
@@ -233,7 +234,7 @@ def traversal_cluster(tree: Tree,
         List[List[List[int]], List[int]], list of cluster superpoint id and list of node id
     """
     queue = [tree.root]
-    
+
     cluster_list = []
     node_id_list = []
     # refine_labels = []
@@ -241,7 +242,7 @@ def traversal_cluster(tree: Tree,
     leaves_ids = []
     nodes_soft_label = []
     leaves_soft_labels = []
-    while (len(queue) > 0):
+    while len(queue) > 0:
         # get aim point id from queue
         node_id = queue.pop(0)
         idx = nodes.index(node_id)
@@ -273,8 +274,7 @@ def traversal_cluster(tree: Tree,
     return cluster_list, node_id_list, refine_labels
 
 
-def build_superpoint_clique(tree: Tree,
-                           node_id_list: List[List[int]]):
+def build_superpoint_clique(tree: Tree, node_id_list: List[List[int]]):
     r"""build the superpoint clique for refinement
 
     Args:
@@ -294,7 +294,7 @@ def build_superpoint_clique(tree: Tree,
             dense_matrix[nid, root_id] = 1
             dense_matrix[root_id, nid] = 1
     dense_matrix = F.normalize(dense_matrix, p=1, dim=-2)
-    
+
     # construct sparse matrix to represent graph connection
     indices = torch.where(dense_matrix > 0)
     i = torch.stack(indices)
@@ -329,4 +329,3 @@ def get_proposals_idx(superpoint: torch.Tensor, cluster_list: List[List[int]]):
     proposals_idx = torch.from_numpy(proposals_idx)
 
     return proposals_idx
-

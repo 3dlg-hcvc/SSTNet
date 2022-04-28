@@ -277,7 +277,8 @@ def main(args):
     logger.info("=> creating model ...")
 
     # create model
-    model = gorilla.build_model({**cfg.model, "dataset_name": cfg.dataset.type, "granularity": cfg.dataset.granularity})
+    model = gorilla.build_model({**cfg.model, "dataset_name": cfg.dataset.type, "granularity": cfg.dataset.granularity,
+                                 "ignore_label": cfg.data.ignore_label})
     model = model.cuda()
     if args.num_gpus > 1:
         # convert the BatchNorm in model as SyncBatchNorm (NOTE: this will be error for low-version pytorch!!!)

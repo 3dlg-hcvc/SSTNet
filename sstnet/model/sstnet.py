@@ -22,21 +22,22 @@ class SSTNet(nn.Module):
                  classes: int,
                  dataset_name: str,
                  granularity: str,
-                 input_channel: int = 3,
-                 use_coords: bool = True,
-                 use_normals: bool = False,
-                 blocks: int = 5,
-                 block_reps: int = 2,
-                 media: int = 32,
-                 score_scale: int = 50,
-                 score_fullscale: int = 14,
-                 score_mode: int = 4,
-                 detach: bool = True,
-                 affinity_weight: List[float] = [1.0, 1.0],
-                 with_refine: bool = False,
-                 fusion_epochs: int = 128,
-                 score_epochs: int = 160,
-                 fix_module: List[str] = [],
+                 input_channel: int,
+                 use_coords: bool,
+                 use_normals: bool,
+                 blocks: int,
+                 block_reps: int,
+                 media: int,
+                 score_scale: int,
+                 score_fullscale: int,
+                 score_mode: int,
+                 detach: bool,
+                 affinity_weight: List[float],
+                 with_refine: bool,
+                 fusion_epochs: int,
+                 score_epochs: int,
+                 fix_module: List[str],
+                 ignore_label: int,
                  **kwargs
                  ):
         super().__init__()
@@ -47,7 +48,7 @@ class SSTNet(nn.Module):
         self.granularity = granularity
         self.fusion_epochs = fusion_epochs
         self.score_epochs = score_epochs
-
+        self.ignore_label = ignore_label
         self.fix_module = fix_module
 
         self.detach = detach
@@ -288,7 +289,7 @@ class SSTNet(nn.Module):
             instance_labels = instance_labels[filter_ids]  # [N']
             num_inst = int(instance_labels.max() + 1)
             _, superpoint_soft_inst_label = align_superpoint_label(instance_labels, superpoint,
-                                                                   num_inst)  # [num_superpoint], [num_superpoint, num_inst + 1]
+                                                                   num_inst, self.ignore_label)  # [num_superpoint], [num_superpoint, num_inst + 1]
         else:
             superpoint_soft_inst_label = superpoint_features
 
