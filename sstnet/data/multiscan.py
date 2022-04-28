@@ -39,18 +39,18 @@ class GetSuperpoint(mp.Process):
 class MultiScanInst(Dataset):
     def __init__(self,
                  data_root: str,
-                 full_scale: List[int] = [128, 512],
-                 scale: int = 50,
-                 max_npoint: int = 250000,
-                 task: str = "train",
-                 with_elastic: bool = False,
-                 with_jitter: bool = True,
-                 with_flip: bool = True,
-                 with_rotation: bool = True,
-                 with_color_aug: bool = True,
+                 full_scale: List[int],
+                 scale: int,
+                 max_npoint: int,
+                 task: str,
+                 with_elastic: bool,
+                 with_jitter: bool,
+                 with_flip: bool,
+                 with_rotation: bool,
+                 with_color_aug: bool,
+                 prefetch_superpoints: bool,
+                 use_normals: bool,
                  test_mode: bool = False,
-                 prefetch_superpoints: bool = True,
-                 use_normals: bool = False,
                  **kwargs):
         # initialize dataset parameters
         self.logger = gorilla.derive_logger(__name__)
@@ -142,8 +142,8 @@ class MultiScanInst(Dataset):
 
         ### elastic
         if self.with_elastic:
-            xyz = elastic(xyz, vertex_normal, 6 * self.scale // 50, 40 * self.scale / 50)
-            xyz = elastic(xyz, vertex_normal, 20 * self.scale // 50, 160 * self.scale / 50)
+            xyz, vertex_normal = elastic(xyz, vertex_normal, 6 * self.scale // 50, 40 * self.scale / 50)
+            xyz, vertex_normal = elastic(xyz, vertex_normal, 20 * self.scale // 50, 160 * self.scale / 50)
 
         ### offset
         xyz_offset = xyz.min(0)
