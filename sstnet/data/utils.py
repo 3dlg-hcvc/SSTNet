@@ -6,7 +6,7 @@ import scipy.ndimage as ndimage
 import scipy.interpolate as interpolate
 import transforms3d.euler as euler
 
-def elastic(xyz, normal, gran, mag):
+def elastic(xyz, gran, mag, normal):
     """Elastic distortion (from point group)
 
     Args:
@@ -17,8 +17,6 @@ def elastic(xyz, normal, gran, mag):
     Returns:
         xyz: point cloud with elastic distortion
     """
-
-    pcd = o3d.geometry.PointCloud()
 
     blur0 = np.ones((3, 1, 1)).astype("float32") / 3
     blur1 = np.ones((1, 3, 1)).astype("float32") / 3
@@ -35,12 +33,17 @@ def elastic(xyz, normal, gran, mag):
     ax = [np.linspace(-(b-1)*gran, (b-1)*gran, b) for b in bb]
     interp = [interpolate.RegularGridInterpolator(ax, n, bounds_error=0, fill_value=0) for n in noise]
     def g(xyz_):
-        return np.hstack([i(xyz_)[:,None] for i in interp])
-    vertices = x + g(x) * mag
-    pcd.points = o3d.utility.Vector3dVector(vertices)
-    pcd.normals = o3d.utility.Vector3dVector(normal)
-    pcd.estimate_normals()  # re-calculate normals
-    return vertices, np.asarray(pcd.normals)
+        return np.hstack([i(xyz_)[:, None] for i in interp])
+    vertices = xyz + g(xyz) * mag
+
+    if normal is not None:
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(vertices)
+        pcd.normals = o3d.utility.Vector3dVector(normal)
+        pcd.estimate_normals()  # re-calculate normals
+        return vertices, np.asarray(pcd.normals)
+    else:
+        return vertices, None
 
 
 # modify from PointGroup

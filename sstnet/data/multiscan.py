@@ -128,6 +128,9 @@ class MultiScanInst(Dataset):
             xyz_origin, rgb, vertex_normal, faces, semantic_label, instance_label, coords_shift, scene = self.files[
                 index]
 
+        if not self.use_normals:
+            vertex_normal = None
+
         if not self.prefetch_superpoints:
             self.get_superpoint(scene)
         superpoint = self.superpoints[scene]
@@ -144,8 +147,8 @@ class MultiScanInst(Dataset):
 
         ### elastic
         if self.with_elastic:
-            xyz, vertex_normal = elastic(xyz, vertex_normal, 6 * self.scale // 50, 40 * self.scale / 50)
-            xyz, vertex_normal = elastic(xyz, vertex_normal, 20 * self.scale // 50, 160 * self.scale / 50)
+            xyz, vertex_normal = elastic(xyz, 6 * self.scale // 50, 40 * self.scale / 50, vertex_normal)
+            xyz, vertex_normal = elastic(xyz, 20 * self.scale // 50, 160 * self.scale / 50, vertex_normal)
 
         ### offset
         xyz_offset = xyz.min(0)
@@ -159,7 +162,7 @@ class MultiScanInst(Dataset):
         xyz_middle = xyz_middle[valid_idxs]
         xyz = xyz[valid_idxs]
         rgb = rgb[valid_idxs]
-        vertex_normal = vertex_normal[valid_idxs]
+
         semantic_label = semantic_label[valid_idxs]
 
         superpoint = np.unique(superpoint[valid_idxs], return_inverse=True)[1]
@@ -177,6 +180,7 @@ class MultiScanInst(Dataset):
         if self.with_color_aug:
             feat += torch.randn(3) * 0.1
         if self.use_normals:
+            vertex_normal = vertex_normal[valid_idxs]
             vertex_normal = vertex_normal / (np.linalg.norm(vertex_normal, axis=1).reshape(-1, 1) + np.finfo(float).eps)
             vertex_normal = torch.from_numpy(vertex_normal)
             feat = torch.cat(feat, vertex_normal, 1)
@@ -187,7 +191,7 @@ class MultiScanInst(Dataset):
         inst_info = torch.from_numpy(inst_info)
         return scene, loc, loc_offset, loc_float, feat, semantic_label, instance_label, superpoint, inst_num, inst_info, inst_pointnum
 
-    def data_aug(self, xyz, normal, jitter=False, flip=False, rot=False):
+    def data_aug(self, xyz, normal=None, jitter=False, flip=False, rot=False):
         m = np.eye(3)
         if jitter:
             m += np.random.randn(3, 3) * 0.1
@@ -197,7 +201,10 @@ class MultiScanInst(Dataset):
             theta = np.random.rand() * 2 * math.pi
             m = np.matmul(m, [[math.cos(theta), math.sin(theta), 0], [-math.sin(theta), math.cos(theta), 0],
                               [0, 0, 1]])  # rotation
-        return np.matmul(xyz, m), np.matmul(normal, np.transpose(np.linalg.inv(m)))
+        if normal is not None:
+            return np.matmul(xyz, m), np.matmul(normal, np.transpose(np.linalg.inv(m)))
+        else:
+            return np.matmul(xyz, m), None
 
     def crop(self, xyz: np.ndarray, semantic_label: np.ndarray, instance_label: np.ndarray) -> Union[
         np.ndarray, np.ndarray]:
@@ -223,8 +230,8 @@ class MultiScanInst(Dataset):
                 xyz_offset = xyz + offset
                 valid_idxs = (xyz_offset.min(1) >= 0) * ((xyz_offset < full_scale).sum(1) == 3)
                 full_scale[:2] -= 32
-            if valid_idxs.sum() > 10000 and np.any(semantic_label != self.ignore_label) and np.any(
-                    instance_label != self.ignore_label):
+            if valid_idxs.sum() > 10000 and np.any(semantic_label[valid_idxs] != self.ignore_label) and np.any(
+                    instance_label[valid_idxs] != self.ignore_label):
                 break
         return xyz_offset, valid_idxs
 
