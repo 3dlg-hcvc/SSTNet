@@ -50,6 +50,7 @@ class MultiScanInst(Dataset):
                  with_color_aug: bool,
                  prefetch_superpoints: bool,
                  use_normals: bool,
+                 ignore_label: int,
                  test_mode: bool = False,
                  **kwargs):
         # initialize dataset parameters
@@ -68,6 +69,7 @@ class MultiScanInst(Dataset):
         self.prefetch_superpoints = prefetch_superpoints
         self.task = task
         self.aug_flag = "train" in self.task
+        self.ignore_label = ignore_label
 
         # load files
         self.load_files()
@@ -152,7 +154,7 @@ class MultiScanInst(Dataset):
         ### crop
         valid_idxs = np.ones(len(xyz_middle), dtype=np.bool)
         if not self.test_mode:
-            xyz, valid_idxs = self.crop(xyz)
+            xyz, valid_idxs = self.crop(xyz, semantic_label, instance_label)
 
         xyz_middle = xyz_middle[valid_idxs]
         xyz = xyz[valid_idxs]
@@ -197,7 +199,8 @@ class MultiScanInst(Dataset):
                               [0, 0, 1]])  # rotation
         return np.matmul(xyz, m), np.matmul(normal, np.transpose(np.linalg.inv(m)))
 
-    def crop(self, xyz: np.ndarray) -> Union[np.ndarray, np.ndarray]:
+    def crop(self, xyz: np.ndarray, semantic_label: np.ndarray, instance_label: np.ndarray) -> Union[
+        np.ndarray, np.ndarray]:
         r"""
         crop the point cloud to reduce training complexity
 
@@ -220,7 +223,8 @@ class MultiScanInst(Dataset):
                 xyz_offset = xyz + offset
                 valid_idxs = (xyz_offset.min(1) >= 0) * ((xyz_offset < full_scale).sum(1) == 3)
                 full_scale[:2] -= 32
-            if valid_idxs.sum() > (self.max_npoint // 2):
+            if valid_idxs.sum() > 10000 and np.any(semantic_label != self.ignore_label) and np.any(
+                    instance_label != self.ignore_label):
                 break
         return xyz_offset, valid_idxs
 
