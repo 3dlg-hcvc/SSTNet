@@ -50,7 +50,7 @@ class SSTNet(nn.Module):
         self.score_epochs = score_epochs
         self.ignore_label = ignore_label
         self.fix_module = fix_module
-
+        self.classes = classes
         self.detach = detach
 
         #### backbone
