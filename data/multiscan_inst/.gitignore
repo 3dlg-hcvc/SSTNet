@@ -2,3 +2,6 @@ scans*
 train*
 val*
 test*
+train_gt*
+val_gt*
+test_gt*
