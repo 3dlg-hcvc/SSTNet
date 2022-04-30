@@ -22,7 +22,7 @@ data:
 
 dataloader:
   batch_size: 4
-  num_workers: 8 # data loader workers
+  num_workers: 4 # data loader workers
 
 dataset:
   type: MultiScanInst
