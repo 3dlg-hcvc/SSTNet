@@ -183,7 +183,7 @@ class MultiScanInst(Dataset):
             vertex_normal = vertex_normal[valid_idxs]
             vertex_normal = vertex_normal / (np.linalg.norm(vertex_normal, axis=1).reshape(-1, 1) + np.finfo(float).eps)
             vertex_normal = torch.from_numpy(vertex_normal)
-            feat = torch.cat(feat, vertex_normal, 1)
+            feat = torch.cat((feat, vertex_normal), 1)
         semantic_label = torch.from_numpy(semantic_label)
         instance_label = torch.from_numpy(instance_label)
         superpoint = torch.from_numpy(superpoint)
