@@ -220,7 +220,7 @@ def do_train(model, cfg, logger):
         meta = {"epoch": epoch, "iter": iter}
 
         # evaluate on val, save checkpoint
-        if epoch // cfg.data.save_freq == 0:
+        if epoch % cfg.data.save_freq == 0:
             eval(model, cfg, writer, logger, epoch)
             checkpoint = osp.join(cfg.log_dir, "epoch_{0:05d}.pth".format(epoch))
             if (epoch == fusion_epochs) or (epoch == fusion_epochs):
