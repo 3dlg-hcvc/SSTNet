@@ -247,7 +247,7 @@ def do_train(model, cfg, logger):
 
 def eval(model, cfg, tb_writer, logger, epoch):
 
-    val_dataset = gorilla.build_dataset(cfg.dataset)
+    val_dataset = gorilla.build_dataset({**cfg.dataset, "use_normals": cfg.model.use_normals, "ignore_label": cfg.data.ignore_label})
     val_dataloader = gorilla.build_dataloader(val_dataset, cfg.dataloader)
 
     # loss/time buffer for epoch record (Optional)
