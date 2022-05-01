@@ -45,7 +45,7 @@ model:
   type: SSTNet
   input_channel: 3
   use_coords: True
-  use_normals: False
+  use_normals: True
   blocks: 5
   block_reps: 2
   media: 32 # 16 or 32

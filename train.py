@@ -259,7 +259,7 @@ def eval(model, cfg, tb_writer, logger, epoch):
     with torch.no_grad():
 
         model = model.eval()
-        criterion = gorilla.build_loss(cfg.loss)
+        criterion = gorilla.build_loss({**cfg.loss, "semantic_class": cfg.model.classes})
 
         for i, batch in enumerate(val_dataloader):
             torch.cuda.empty_cache()
