@@ -7,6 +7,7 @@ import gorilla3d
 import spconv
 import sstnet
 import pointgroup_ops
+import multiprocessing
 
 
 def get_parser():
@@ -409,7 +410,9 @@ def main(args):
     cfg = gorilla.config.merge_cfg_and_args(cfg, args)
 
     cfg.log_dir = log_dir
-
+    if cfg.model.use_normals:
+        # prevent multi-processing deadlock in open3d estimate_normals method
+        multiprocessing.set_start_method('forkserver')
     # set random seed
     seed = cfg.get("seed", 0)
     gorilla.set_random_seed(seed)
