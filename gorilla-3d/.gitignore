@@ -1,0 +1,20 @@
+# dir
+__pycache__
+build
+.vscode
+*egg*
+dist
+work_dirs
+.ipynb_checkpoints
+exp
+
+# file
+*.so
+*.o
+*.swp
+*.pyc
+*ninja*
+*cache*
+*.pth
+
+.idea/*

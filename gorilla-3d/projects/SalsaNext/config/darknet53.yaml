@@ -1,0 +1,35 @@
+###################
+_base_: ./common.yaml
+
+## Model options
+model:
+  type: RangeNet
+  backbone_cfg:
+    type: DarkNet
+    use_range: True
+    use_xyz: True
+    use_remission: True
+    dropout: 0.01
+    bn_d: 0.1
+    output_stride: 32
+    layers: 53
+  decoder_cfg:
+    type: DarkDecoder
+    output_stride: 32
+    dropout: 0.01
+    feature_depth: 1024
+    bn_d: 0.1
+  head_cfg:
+    type: RangeHead
+    nclasses: 20
+    in_channels: 32
+    dropout: 0.01
+
+dataloader:
+  batch_size: 4
+  num_workers: 8
+
+solver:
+  # train mode
+  epochs: 150
+  save_freq: 4599  # also eval_freq

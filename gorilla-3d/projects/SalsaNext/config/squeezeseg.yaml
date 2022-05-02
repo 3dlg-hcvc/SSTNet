@@ -1,0 +1,31 @@
+###################
+_base_: ./common.yaml
+
+## Model options
+model:
+  type: RangeNet
+  backbone_cfg:
+    type: SqueezeNet
+    use_range: True
+    use_xyz: True
+    use_remission: True
+    dropout: 0.01
+    output_stride: 16
+  decoder_cfg:
+    type: SqueezeDecoder
+    output_stride: 16
+    dropout: 0.01
+  head_cfg:
+    type: RangeHead
+    nclasses: 20
+    in_channels: 64
+    dropout: 0.3
+
+dataloader:
+  batch_size: 4
+  num_workers: 8
+
+solver:
+  # train mode
+  epochs: 150
+  save_freq: 4599  # also eval_freq

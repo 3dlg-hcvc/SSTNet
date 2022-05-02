@@ -102,9 +102,17 @@ def init():
 
     global semantic_label_idx
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    semantic_label_idx = torch.tensor([
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39
-    ]).cuda()
+    if cfg.dataset.type == "MultiScanInst":
+        if cfg.dataset.granularity == "inst":
+            semantic_label_idx = torch.arange(1, 21).cuda()
+        if cfg.dataset.granularity == "part":
+            semantic_label_idx = torch.arange(1, 6).cuda()
+    elif cfg.dataset.type == "ScanNetV2Inst":
+        semantic_label_idx = torch.tensor([
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39
+        ]).cuda()
+    else:
+        raise NotImplementedError
 
     return logger, cfg
 

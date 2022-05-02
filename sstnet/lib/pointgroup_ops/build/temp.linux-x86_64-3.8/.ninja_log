@@ -1,0 +1,7 @@
+# ninja log v5
+1	10717	1634471413240894432	/local-scratch/localhome/yza440/SFU/SSTNet/sstnet/lib/pointgroup_ops/build/temp.linux-x86_64-3.8/pointgroup_ops/src/cuda.o	8e4141cdeefed1f5
+1	12681	1634471415204858393	/local-scratch/localhome/yza440/SFU/SSTNet/sstnet/lib/pointgroup_ops/build/temp.linux-x86_64-3.8/pointgroup_ops/src/pointgroup_ops.o	5218107fcae5b7b1
+0	16133	1634471418656795049	/local-scratch/localhome/yza440/SFU/SSTNet/sstnet/lib/pointgroup_ops/build/temp.linux-x86_64-3.8/pointgroup_ops/src/pointgroup_ops_api.o	460aee2c6f8b6139
+0	13043	1643852566721261432	/local-scratch/localhome/yza440/Research/SSTNet/sstnet/lib/pointgroup_ops/build/temp.linux-x86_64-3.8/pointgroup_ops/src/cuda.o	7e314f84ca810be8
+0	15252	1643852568929243622	/local-scratch/localhome/yza440/Research/SSTNet/sstnet/lib/pointgroup_ops/build/temp.linux-x86_64-3.8/pointgroup_ops/src/pointgroup_ops.o	e1a0172bdba076e
+0	18274	1643852571949219261	/local-scratch/localhome/yza440/Research/SSTNet/sstnet/lib/pointgroup_ops/build/temp.linux-x86_64-3.8/pointgroup_ops/src/pointgroup_ops_api.o	3efa9fc6432df9b1
