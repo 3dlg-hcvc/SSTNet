@@ -410,7 +410,7 @@ def main(args):
     cfg = gorilla.config.merge_cfg_and_args(cfg, args)
 
     cfg.log_dir = log_dir
-    if cfg.model.use_normals:
+    if cfg.model.use_normals and cfg.dataset.with_elastic:
         # prevent multi-processing deadlock in open3d estimate_normals method
         multiprocessing.set_start_method('forkserver')
     # set random seed
