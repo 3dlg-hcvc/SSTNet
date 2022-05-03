@@ -126,7 +126,7 @@ def test(model, cfg, logger):
     cfg.dataset.test_mode = True
     cfg.dataloader.batch_size = 1
     cfg.dataloader.num_workers = 2
-    test_dataset = gorilla.build_dataset(cfg.dataset)
+    test_dataset = gorilla.build_dataset({**cfg.dataset, "use_normals": cfg.model.use_normals, "ignore_label": cfg.data.ignore_label})
     test_dataloader = gorilla.build_dataloader(test_dataset, cfg.dataloader)
 
     with torch.no_grad():
@@ -141,8 +141,14 @@ def test(model, cfg, logger):
         sub_dir = "scans_test" if "test" in cfg.dataset.task else "scans"
 
         label_root = os.path.join(data_root, cfg.dataset.task + "_gt")
-        evaluator = gorilla3d.ScanNetSemanticEvaluator(label_root)
-        inst_evaluator = gorilla3d.ScanNetInstanceEvaluator(label_root)
+        if cfg.dataset.type == "ScanNetV2Inst":
+            evaluator = gorilla3d.ScanNetSemanticEvaluator(label_root)
+            inst_evaluator = gorilla3d.ScanNetInstanceEvaluator(label_root)
+        elif cfg.dataset.type == "MultiScanInst":
+            evaluator = gorilla3d.MultiScanSemanticEvaluator(label_root)
+            inst_evaluator = gorilla3d.MultiScanInstanceEvaluator(label_root)
+        else:
+            raise NotImplementedError
 
         for i, batch in enumerate(test_dataloader):
             torch.cuda.empty_cache()
@@ -363,7 +369,8 @@ if __name__ == "__main__":
     logger.info("=> creating model ...")
     logger.info(f"Classes: {cfg.model.classes}")
 
-    model = gorilla.build_model(cfg.model)
+    model = gorilla.build_model({**cfg.model, "dataset_name": cfg.dataset.type, "granularity": cfg.dataset.granularity,
+                                 "ignore_label": cfg.data.ignore_label})
 
     use_cuda = torch.cuda.is_available()
     logger.info(f"cuda available: {use_cuda}")
