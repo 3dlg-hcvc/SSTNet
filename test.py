@@ -6,7 +6,7 @@ import os
 import torch
 import spconv
 import scipy.stats as stats
-
+import multiprocessing
 import pointgroup_ops
 import gorilla
 import gorilla3d
@@ -64,6 +64,10 @@ def init():
     cfg.data.visual = args.visual
     cfg.data.eval = args.eval
     cfg.data.save = args.save
+
+    if cfg.model.use_normals and cfg.dataset.with_elastic:
+        # prevent multi-processing deadlock in open3d estimate_normals method
+        multiprocessing.set_start_method('forkserver')
 
     gorilla.set_random_seed(cfg.data.test_seed)
 
@@ -384,6 +388,6 @@ if __name__ == "__main__":
     gorilla.load_checkpoint(
         model, cfg.pretrain
     )  # resume from the latest epoch, or specify the epoch to restore
-
+    print()
     ##### evaluate
     test(model, cfg, logger)
