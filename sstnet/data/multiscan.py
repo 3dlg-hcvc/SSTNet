@@ -105,15 +105,12 @@ class MultiScanInst(Dataset):
         #         self.get_superpoint(f[-1])
         # import ipdb; ipdb.set_trace()
 
-    def get_superpoint(self, scene: str):
+    def get_superpoint(self, scene: str, vertices, faces):
         if scene in self.superpoints:
             return
         # sub_dir = "scans_test" if "test" in self.task else "scans"
-        sub_dir = "scans"
-        mesh_file = os.path.join(self.data_root, sub_dir, scene, scene + "_clean.ply")
-        mesh = o3d.io.read_triangle_mesh(mesh_file)
-        vertices = torch.from_numpy(np.array(mesh.vertices).astype(np.float32))
-        faces = torch.from_numpy(np.array(mesh.triangles).astype(np.int64))
+        vertices = torch.from_numpy(vertices.astype(np.float32))
+        faces = torch.from_numpy(faces.astype(np.int64))
         superpoint = segmentator.segment_mesh(vertices, faces).numpy()
         self.superpoints[scene] = superpoint
 
@@ -147,7 +144,7 @@ class MultiScanInst(Dataset):
             vertex_normal = None
 
         if not self.prefetch_superpoints:
-            self.get_superpoint(scene)
+            self.get_superpoint(scene, xyz_origin, faces)
         superpoint = self.superpoints[scene]
 
         ### jitter / flip x / rotation
