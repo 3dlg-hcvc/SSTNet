@@ -126,7 +126,7 @@ class MultiScanInst(Dataset):
             faces = input_instance['faces']
             scene = self.files[index][0]
             if not self.use_normals:
-                normals = None
+                vertex_normal = None
             # construct fake label for label-lack testset
             semantic_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
             instance_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
@@ -143,9 +143,22 @@ class MultiScanInst(Dataset):
         if not self.use_normals:
             vertex_normal = None
 
+
+        # TODO: HARD CODED FACE CALCULATION
+        extra_len = len(xyz_origin) - len(input_instance["additional2original_vertex_match"])
+        tmp_original_xyz = xyz_origin[:extra_len]
         if not self.prefetch_superpoints:
-            self.get_superpoint(scene, xyz_origin, faces)
+            self.get_superpoint(scene, tmp_original_xyz, faces)
+
+
+
         superpoint = self.superpoints[scene]
+        extra_superpoint = np.copy(superpoint[input_instance["additional2original_vertex_match"]])
+        superpoint = np.concatenate((superpoint, extra_superpoint))
+
+        # TODO: HARD CODED END
+        # if not self.prefetch_superpoints:
+        #     self.get_superpoint(scene, xyz_origin, faces)
 
         ### jitter / flip x / rotation
         if self.aug_flag:

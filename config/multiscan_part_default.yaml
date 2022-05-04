@@ -20,13 +20,15 @@ data:
   split: val
   test_epoch: 512
 
+  filename_suffix: .pth
+
 dataloader:
   batch_size: 4
   num_workers: 8 # data loader workers
 
 dataset:
   type: MultiScanInst
-  data_type: part
+  granularity: part
   data_root: data/multiscan_part
   full_scale: [128, 512]
   scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
@@ -37,8 +39,8 @@ dataset:
   with_elastic: False
   with_jitter: True
   with_flip: True
-  with_rotation: True
-  with_color_aug: True
+  with_rotation: False
+  with_color_aug: False
 
   prefetch_superpoints: False
 
