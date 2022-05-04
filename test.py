@@ -13,6 +13,7 @@ import gorilla3d
 import gorilla3d.datasets as datasets
 import sstnet
 
+
 def get_parser():
     parser = argparse.ArgumentParser(description="SSTNet for Point Cloud Instance Segmentation")
     parser.add_argument("--config",
@@ -24,6 +25,7 @@ def get_parser():
                         type=str,
                         default="",
                         help="path to pretrain model")
+
     ### split
     parser.add_argument("--split",
                         type=str,
@@ -130,7 +132,9 @@ def test(model, cfg, logger):
     cfg.dataset.test_mode = True
     cfg.dataloader.batch_size = 1
     cfg.dataloader.num_workers = 2
-    test_dataset = gorilla.build_dataset({**cfg.dataset, "use_normals": cfg.model.use_normals, "ignore_label": cfg.data.ignore_label})
+    test_dataset = gorilla.build_dataset(
+        {**cfg.dataset, "use_normals": cfg.model.use_normals, "ignore_label": cfg.data.ignore_label,
+         "filename_suffix": cfg.data.filename_suffix})
     test_dataloader = gorilla.build_dataloader(test_dataset, cfg.dataloader)
 
     with torch.no_grad():
@@ -160,18 +164,18 @@ def test(model, cfg, logger):
             N = batch["feats"].shape[0]
             test_scene_name = batch["scene_list"][0]
 
-            coords = batch["locs"].cuda() # [N, 1 + 3] dimension 0 for batch_idx
-            locs_offset = batch["locs_offset"].cuda() # [B, 3]
-            voxel_coords = batch["voxel_locs"].cuda() # [M, 1 + 3]
-            p2v_map = batch["p2v_map"].cuda() # [N]
-            v2p_map = batch["v2p_map"].cuda() # [M, 1 + maxActive]
+            coords = batch["locs"].cuda()  # [N, 1 + 3] dimension 0 for batch_idx
+            locs_offset = batch["locs_offset"].cuda()  # [B, 3]
+            voxel_coords = batch["voxel_locs"].cuda()  # [M, 1 + 3]
+            p2v_map = batch["p2v_map"].cuda()  # [N]
+            v2p_map = batch["v2p_map"].cuda()  # [M, 1 + maxActive]
 
-            coords_float = batch["locs_float"].cuda() # [N, 3]
-            feats = batch["feats"].cuda() # [N, C]
+            coords_float = batch["locs_float"].cuda()  # [N, 3]
+            feats = batch["feats"].cuda()  # [N, C]
 
-            batch_offsets = batch["offsets"].cuda() # [B + 1]
+            batch_offsets = batch["offsets"].cuda()  # [B + 1]
             scene_list = batch["scene_list"]
-            superpoint = batch["superpoint"].cuda() # [N
+            superpoint = batch["superpoint"].cuda()  # [N
             _, superpoint = torch.unique(superpoint, return_inverse=True)  # [N]
 
             extra_data = {"batch_idxs": coords[:, 0].int(),
@@ -183,7 +187,7 @@ def test(model, cfg, logger):
 
             if cfg.model.use_coords:
                 feats = torch.cat((feats, coords_float), 1)
-            voxel_feats = pointgroup_ops.voxelization(feats, v2p_map, cfg.data.mode) # [M, C]
+            voxel_feats = pointgroup_ops.voxelization(feats, v2p_map, cfg.data.mode)  # [M, C]
 
             input_ = spconv.SparseConvTensor(voxel_feats, voxel_coords.int(), spatial_shape, cfg.dataloader.batch_size)
 
@@ -197,8 +201,8 @@ def test(model, cfg, logger):
                         mode="test",
                         semantic_only=semantic)
 
-            semantic_scores = ret["semantic_scores"] # [N, nClass]
-            pt_offsets = ret["pt_offsets"] # [N, 3]
+            semantic_scores = ret["semantic_scores"]  # [N, nClass]
+            pt_offsets = ret["pt_offsets"]  # [N, 3]
 
             score_epochs = cfg.model.score_epochs
             prepare_flag = epoch > score_epochs
@@ -214,7 +218,6 @@ def test(model, cfg, logger):
                     proposals_idx, proposals_offset = ret["proposals"]
                     preds["score"] = scores
                     preds["proposals"] = (proposals_idx, proposals_offset)
-
 
             ##### get predictions (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
             semantic_scores = preds["semantic"]  # [N, nClass=20]
@@ -246,7 +249,7 @@ def test(model, cfg, logger):
                                       proposals_offset[1:]):
                     semantic_label, _ = stats.mode(
                         semantic_pred[proposals_idx[start:end,
-                                                    1].long()].cpu().numpy())
+                                      1].long()].cpu().numpy())
                     semantic_label = semantic_label[0]
                     semantic_pred_list.append(semantic_label)
 
@@ -282,7 +285,7 @@ def test(model, cfg, logger):
                         proposals_pointnum.shape[0], 1)
                     cross_ious = intersection / (proposals_pn_h +
                                                  proposals_pn_v - intersection)
-                                                 
+
                     pick_idxs = gorilla3d.non_max_suppression(
                         cross_ious.cpu().numpy(),
                         scores_pred.cpu().numpy(),
@@ -318,7 +321,7 @@ def test(model, cfg, logger):
                         cfg.data.visual,
                         os.path.join(data_root, sub_dir),
                         cluster_scores.cpu().numpy(),
-                        semantic_pred.cpu().numpy(),)
+                        semantic_pred.cpu().numpy(), )
 
             ##### save files
             if (prepare_flag and cfg.data.save):

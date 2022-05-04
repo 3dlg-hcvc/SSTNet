@@ -51,6 +51,7 @@ class MultiScanInst(Dataset):
                  prefetch_superpoints: bool,
                  use_normals: bool,
                  ignore_label: int,
+                 filename_suffix: str,
                  test_mode: bool = False,
                  **kwargs):
         # initialize dataset parameters
@@ -70,13 +71,14 @@ class MultiScanInst(Dataset):
         self.task = task
         self.aug_flag = "train" in self.task
         self.ignore_label = ignore_label
+        self.filename_suffix = filename_suffix
 
         # load files
         self.load_files()
 
     def load_files(self):
         file_names = sorted(glob.glob(os.path.join(self.data_root, self.task, "*.pth")))
-        self.files = [torch.load(i) for i in gorilla.track(file_names)]
+        self.files = [(i.split("/")[-1].replace(self.filename_suffix, ""), torch.load(i)) for i in gorilla.track(file_names)]
         self.logger.info(f"{self.task} samples: {len(self.files)}")
         self.superpoints = {}
         if self.prefetch_superpoints:
@@ -88,7 +90,7 @@ class MultiScanInst(Dataset):
                 mdict = mp.Manager().dict()
                 # multi-processing generate superpoints
                 for f in self.files:
-                    workers.append(GetSuperpoint(path, f[-1], mdict))
+                    workers.append(GetSuperpoint(path, f[0], mdict))
                 for worker in workers:
                     worker.start()
                 # wait for multi-processing
@@ -120,13 +122,26 @@ class MultiScanInst(Dataset):
 
     def __getitem__(self, index: int) -> Tuple:
         if "test" in self.task:
-            xyz_origin, rgb, vertex_normal, faces, scene = self.files[index]
+            input_instance = self.files[index][1]
+            xyz_origin = input_instance['coords']
+            rgb = input_instance['colors'] / 127.5 - 1
+            vertex_normal = input_instance['normals']
+            faces = input_instance['faces']
+            scene = self.files[index][0]
+            if not self.use_normals:
+                normals = None
             # construct fake label for label-lack testset
             semantic_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
             instance_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
         else:
-            xyz_origin, rgb, vertex_normal, faces, semantic_label, instance_label, coords_shift, scene = self.files[
-                index]
+            input_instance = self.files[index][1]
+            xyz_origin = input_instance['coords']
+            rgb = input_instance['colors'] / 127.5 - 1
+            vertex_normal = input_instance['normals']
+            faces = input_instance['faces']
+            semantic_label = input_instance["sem_labels"]
+            instance_label = input_instance["instance_ids"]
+            scene = self.files[index][0]
 
         if not self.use_normals:
             vertex_normal = None

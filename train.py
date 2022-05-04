@@ -47,7 +47,7 @@ def do_train(model, cfg, logger):
 
     # initialize train dataset
     train_dataset = gorilla.build_dataset(
-        {**cfg.dataset, "use_normals": cfg.model.use_normals, "ignore_label": cfg.data.ignore_label})
+        {**cfg.dataset, "use_normals": cfg.model.use_normals, "ignore_label": cfg.data.ignore_label, "filename_suffix": cfg.data.filename_suffix})
     train_dataloader = gorilla.build_dataloader(train_dataset, cfg.dataloader, shuffle=True, pin_memory=True,
                                                 drop_last=True)
 

@@ -20,6 +20,8 @@ data:
   split: val
   test_epoch: 512
 
+  filename_suffix: .pth
+
 dataloader:
   batch_size: 4
   num_workers: 4 # data loader workers
