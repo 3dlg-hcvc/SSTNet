@@ -104,7 +104,7 @@ def init():
                                                    cfg.data.TEST_SCORE_THRESH,
                                                    cfg.data.TEST_NPOINT_THRESH),
         args.split)
-    os.makedirs(os.path.join(result_dir, "predicted_masks"), exist_ok=True)
+    os.makedirs(os.path.join(result_dir, "instance", "predicted_masks"), exist_ok=True)
 
     global semantic_label_idx
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -325,26 +325,19 @@ def test(model, cfg, logger):
 
             ##### save files
             if (prepare_flag and cfg.data.save):
-                f = open(os.path.join(result_dir, test_scene_name + ".txt"), "w")
+                f = open(os.path.join(result_dir, "instance", test_scene_name + ".txt"), "w")
                 for proposal_id in range(nclusters):
                     clusters_i = clusters[proposal_id].cpu().numpy()  # [N]
                     semantic_label = np.argmax(
                         np.bincount(
                             semantic_pred[np.where(clusters_i == 1)[0]].cpu()))
                     score = cluster_scores[proposal_id]
-                    f.write(f"predicted_masks/{test_scene_name}_{proposal_id:03d}.txt "
+                    f.write(f"instance/predicted_masks/{test_scene_name}_{proposal_id:03d}.txt"
                             f"{semantic_label_idx[semantic_label]} {score:.4f}")
                     if proposal_id < nclusters - 1:
                         f.write("\n")
-                    content = list(map(lambda x: str(x), clusters_i.tolist()))
-                    content = "\n".join(content)
-                    with open(
-                            os.path.join(
-                                result_dir, "predicted_masks",
-                                test_scene_name + "_%03d.txt" % (proposal_id)),
-                            "w") as cf:
-                        cf.write(content)
-                    # np.savetxt(os.path.join(result_dir, "predicted_masks", test_scene_name + "_%03d.txt" % (proposal_id)), clusters_i, fmt="%d")
+                    np.savetxt(os.path.join(result_dir, "instance", "predicted_masks",test_scene_name + "_%03d.txt" % (proposal_id)),
+                                clusters_i.nonzero(), fmt="%d")
                 f.close()
 
             save_time = timer.since_last()
