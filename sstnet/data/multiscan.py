@@ -120,9 +120,9 @@ class MultiScanInst(Dataset):
     def __getitem__(self, index: int) -> Tuple:
         if "test" in self.task:
             input_instance = self.files[index][1]
-            xyz_origin = input_instance['coords']
-            rgb = input_instance['colors'] / 127.5 - 1
-            vertex_normal = input_instance['normals']
+            xyz_origin = input_instance['xyz']
+            rgb = input_instance['rgb'] / 127.5 - 1
+            vertex_normal = input_instance['normal']
             faces = input_instance['faces']
             scene = self.files[index][0]
             if not self.use_normals:
@@ -132,9 +132,9 @@ class MultiScanInst(Dataset):
             instance_label = np.zeros(xyz_origin.shape[0], dtype=np.int32)
         else:
             input_instance = self.files[index][1]
-            xyz_origin = input_instance['coords']
-            rgb = input_instance['colors'] / 127.5 - 1
-            vertex_normal = input_instance['normals']
+            xyz_origin = input_instance['xyz']
+            rgb = input_instance['rgb'] / 127.5 - 1
+            vertex_normal = input_instance['normal']
             faces = input_instance['faces']
             semantic_label = input_instance["sem_labels"]
             instance_label = input_instance["instance_ids"]
