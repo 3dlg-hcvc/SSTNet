@@ -262,7 +262,7 @@ class MultiScanInst(Dataset):
                               (coordinates and the number of points) of instances
         """
         instance_info = np.ones((xyz.shape[0], 9),
-                                dtype=np.float32) * -100.0  # [n, 9], float, (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
+                                dtype=np.float32) * self.ignore_label  # [n, 9], float, (cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
         instance_pointnum = []  # [num_inst], int
         instance_num = int(instance_label.max()) + 1
         for i_ in range(instance_num):
@@ -329,7 +329,7 @@ class MultiScanInst(Dataset):
             superpoint += superpoint_bias
             superpoint_bias += (superpoint.max() + 1)
 
-            invalid_ids = np.where(instance_label != -100)
+            invalid_ids = np.where(instance_label != self.ignore_label)
             instance_label[invalid_ids] += total_inst_num
             total_inst_num += inst_num
 
