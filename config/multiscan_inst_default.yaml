@@ -2,7 +2,7 @@ task: train  # train, test
 seed: 123
 
 data:
-  ignore_label: -100
+  ignore_label: -1
   mode: 4 # 4=mean
 
   # train mode
@@ -64,7 +64,7 @@ model:
 
 loss:
   type: SSTLoss
-  ignore_label: -100
+  ignore_label: -1
   fusion_epochs: 128
   score_epochs: 160
   bg_thresh: 0.25
