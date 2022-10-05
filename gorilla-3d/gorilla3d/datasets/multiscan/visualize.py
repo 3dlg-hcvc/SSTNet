@@ -13,11 +13,32 @@ import numpy as np
 import open3d as o3d
 import colorsys
 import matplotlib.colors
+import matplotlib.pyplot as plt
 
-preset_colors  = ["#fabed4", "#FF6D00", "#00C853", "#0091EA",  "#00ced1", "#D50000", "#FFD600",
-              "#673AB7", "#3F51B5", "#795548", "#AEEA00", "#009688", "#ba55d3", "#e9967a", "#607D8B", "#E91E63",
-              "#7fff00", "#AA00FF"]
-preset_colors = [list(matplotlib.colors.to_rgb(color)) for color in preset_colors]
+CLASS_COLOR = {
+    'floor': [143, 223, 142],
+    'wall': [171, 198, 230],
+    'ceiling': [171, 198, 230],
+    'door': [0, 120, 177],
+    'table': [255, 188, 126],
+    'chair': [189, 189, 57],
+    'cabinet': [144, 86, 76],
+    'window': [255, 152, 153],
+    'sofa': [222, 40, 47],
+    'microwave': [197, 176, 212],
+    'pillow': [150, 103, 185],
+    'tv_monitor': [200, 156, 149],
+    'curtain': [0, 190, 206],
+    'trash_can': [252, 183, 210],
+    'suitcase': [219, 219, 146],
+    'sink': [255, 127, 43],
+    'backpack': [234, 119, 192],
+    'bed': [150, 218, 228],
+    'refrigerator': [0, 160, 55],
+    'toilet': [110, 128, 143],
+}
+preset_colors = list(CLASS_COLOR.values())
+# preset_colors = [list(matplotlib.colors.to_rgb(color)) for color in preset_colors]
 
 
 color_cache = {}
@@ -129,7 +150,7 @@ def visualize_instance_mask(clusters: np.ndarray,
                             data_root: str,
                             cluster_scores: Optional[np.ndarray] = None,
                             semantic_pred: Optional[np.ndarray] = None,
-                            color: int = 28,
+                            color: int = 20,
                             **kwargs):
     global color_cache
     global sem_color_cache
@@ -141,7 +162,7 @@ def visualize_instance_mask(clusters: np.ndarray,
     mesh = o3d.io.read_triangle_mesh(mesh_file)
     pred_mesh = deepcopy(mesh)
     points = np.array(pred_mesh.vertices)
-    inst_label_pred_rgb = np.asarray(mesh.vertex_colors)  # np.ones(rgb.shape) * 255 #
+    inst_label_pred_rgb =np.ones_like(mesh.vertex_colors) * 0.6 # np.asarray(mesh.vertex_colors)  # np.ones(rgb.shape) * 255 #
     logger.info(f"room_name: {room_name}")
     inst_tmp = np.zeros(len(inst_label_pred_rgb))
     for cluster_id, cluster in enumerate(clusters):
@@ -179,7 +200,7 @@ def visualize_instance_mask(clusters: np.ndarray,
         idx = inst_tmp == i
         sem_idx = semantic_pred == (semantic_pred[idx][0])
         color_len = len(np.unique(inst_tmp[sem_idx]))
-        inst_label_pred_rgb[idx] = get_inst_color(semantic_pred[idx][0], color_len)
+        inst_label_pred_rgb[idx] = np.random.rand(3)
 
     rgb = inst_label_pred_rgb
     pred_mesh.vertex_colors = o3d.utility.Vector3dVector(rgb)
@@ -278,7 +299,9 @@ def get_coords_color(data_root: str,
             # )
             sem_idx = label_pred == label_pred[mask == 1][0]
             color_len = len(np.unique(inst_label_pred_rgb[sem_idx]))
-            inst_label_pred_rgb[mask == 1] = get_inst_color(label_pred[mask == 1], color_len)
+
+            inst_label_pred_rgb[mask == 1] = np.random.rand(3)
+            print(np.random.rand(3))
         rgb = inst_label_pred_rgb
 
     if "test" not in room_split:

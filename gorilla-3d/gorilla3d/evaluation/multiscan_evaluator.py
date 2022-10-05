@@ -12,9 +12,10 @@ from .pattern import SemanticEvaluator, InstanceEvaluator
 # CLASS_LABELS = ['floor', 'ceiling', 'wall', 'door', 'table', 'chair', 'cabinet', 'window', 'sofa', 'microwave', 'pillow',
 # 'tv_monitor', 'curtain', 'trash_can', 'suitcase', 'sink', 'backpack', 'bed', 'refrigerator','toilet']
 # CLASS_IDS = range(1, 21)
-CLASS_LABELS = ['cabinet:door', 'cabinet:cabinet', 'table:table', 'cabinet:drawer', 'door:door', 'door:frame', 'window:window', 'table:drawer', 'window:frame', 'bed:bed', 'refrigerator:door', 
-'toilet:toilet', "refrigerator:refrigerator", "bed:drawer", "microwave:microwave", "microwave:door", "toilet:lid", "table:door"]
-CLASS_IDS = range(1, 19)
+
+CLASS_LABELS = ["static_part", "door", "drawer", "window", "lid"]
+CLASS_IDS = range(1, 6)
+
 
 class MultiScanSemanticEvaluator(SemanticEvaluator):
     def __init__(self,
@@ -46,22 +47,24 @@ class MultiScanSemanticEvaluator(SemanticEvaluator):
             semantic_pred = self.class_ids[semantic_pred]
             self.fill_confusion(semantic_pred, semantic_gt)
 
+
     @staticmethod
     def read_gt(origin_root, scene_name):
-        label = np.loadtxt(os.path.join(origin_root, scene_name + "_sem.txt"))
-        label = label.astype(np.int32)
-        
+        label = np.loadtxt(os.path.join(origin_root, scene_name + ".txt"), dtype=np.int32)
+        if len(label.shape) == 2:
+            label = label[:, 0] // 1000
+        else:
+            label = label // 1000
         return label
 
 
 # ---------- Label info ---------- #
-# FOREGROUND_CLASS_LABELS = ['door', 'table', 'chair', 'cabinet', 'window', 'sofa', 'microwave', 'pillow',
-# 'tv_monitor', 'curtain', 'trash_can', 'suitcase', 'sink', 'backpack', 'bed', 'refrigerator','toilet']
-# FOREGROUND_CLASS_IDS = np.array(range(4, 21))
+FOREGROUND_CLASS_LABELS = ["static_part", "door", "drawer", "window", "lid"]
+FOREGROUND_CLASS_IDS = np.array(range(1, 6))
 
-FOREGROUND_CLASS_LABELS = ['cabinet:door', 'cabinet:cabinet', 'table:table', 'cabinet:drawer', 'door:door', 'door:frame', 'window:window', 'table:drawer', 'window:frame', 'bed:bed', 'refrigerator:door', 
-'toilet:toilet', "refrigerator:refrigerator", "bed:drawer", "microwave:microwave", "microwave:door", "toilet:lid", "table:door"]
-FOREGROUND_CLASS_IDS = range(1, 19)
+# FOREGROUND_CLASS_LABELS = ['floor', 'ceiling', 'wall', 'door', 'table', 'chair', 'cabinet', 'window', 'sofa', 'microwave', 'pillow',
+# 'tv_monitor', 'curtain', 'trash_can', 'suitcase', 'sink', 'backpack', 'bed', 'refrigerator','toilet'][3:]
+# FOREGROUND_CLASS_IDS = range(1, 21)[3:]
 
 
 class MultiScanInstanceEvaluator(InstanceEvaluator):
@@ -98,7 +101,7 @@ class MultiScanInstanceEvaluator(InstanceEvaluator):
         for input, output in zip(inputs, outputs):
             scene_name = input["scene_name"]
             gt_file = osp.join(self._dataset_root, scene_name + ".txt")
-            gt_ids = np.loadtxt(gt_file)
+            gt_ids = np.loadtxt(gt_file, dtype=np.int64)
             self.assign(scene_name, output, gt_ids)
 
 

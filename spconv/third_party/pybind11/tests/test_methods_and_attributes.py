@@ -64,21 +64,21 @@ def test_methods_and_attributes():
     assert cstats.move_assignments == 0
 
 
-def test_copy_method():
-    """Issue #443: calling copied methods fails in Python 3"""
-
-    m.ExampleMandA.add2c = m.ExampleMandA.add2
-    m.ExampleMandA.add2d = m.ExampleMandA.add2b
-    a = m.ExampleMandA(123)
-    assert a.value == 123
-    a.add2(m.ExampleMandA(-100))
-    assert a.value == 23
-    a.add2b(m.ExampleMandA(20))
-    assert a.value == 43
-    a.add2c(m.ExampleMandA(6))
-    assert a.value == 49
-    a.add2d(m.ExampleMandA(-7))
-    assert a.value == 42
+# def test_copy_method():
+#     """Issue #443: calling copied methods fails in Python 3"""
+#
+#     m.ExampleMandA.add2c = m.ExampleMandA.add2
+#     m.ExampleMandA.add2d = m.ExampleMandA.add2b
+#     a = m.ExampleMandA(123)
+#     assert a.value == 123
+#     a.add2(m.ExampleMandA(-100))
+#     assert a.value == 23
+#     a.add2b(m.ExampleMandA(20))
+#     assert a.value == 43
+#     a.add2c(m.ExampleMandA(6))
+#     assert a.value == 49
+#     a.add2d(m.ExampleMandA(-7))
+#     assert a.value == 42
 
 
 def test_properties():

@@ -266,10 +266,11 @@ def traversal_cluster(tree: Tree, nodes: List[int], fusion_labels: List[bool]):
         nodes_soft_label = torch.stack(nodes_soft_label)
         leaves_soft_labels = torch.stack(leaves_soft_labels)
         refine_labels = (nodes_soft_label * leaves_soft_labels).sum(1)
-    except:
+    except Exception as e:
         cluster_list = None
         node_id_list = None
         refine_labels = None
+        raise e
 
     return cluster_list, node_id_list, refine_labels
 
@@ -317,14 +318,18 @@ def get_proposals_idx(superpoint: torch.Tensor, cluster_list: List[List[int]]):
     superpoint_np = superpoint.cpu().numpy()
     proposals_idx_list = []
     cluster_id = 0
+ 
     for cluster in cluster_list:
         proposals_idx = np.where(np.isin(superpoint_np, cluster))[0]
         clusters_id = np.ones_like(proposals_idx) * cluster_id
         proposals_idx = np.stack([clusters_id, proposals_idx], axis=1)
         if len(proposals_idx) < 50:
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             continue
         proposals_idx_list.append(proposals_idx)
         cluster_id += 1
+    if cluster_id == 0:
+        print("77777777777777777777777777777777777777")
     proposals_idx = np.concatenate(proposals_idx_list)
     proposals_idx = torch.from_numpy(proposals_idx)
 

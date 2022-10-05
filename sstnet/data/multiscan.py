@@ -144,21 +144,21 @@ class MultiScanInst(Dataset):
             vertex_normal = None
 
 
-        # TODO: HARD CODED FACE CALCULATION
-        extra_len = len(xyz_origin) - len(input_instance["additional2original_vertex_match"])
-        tmp_original_xyz = xyz_origin[:extra_len]
-        if not self.prefetch_superpoints:
-            self.get_superpoint(scene, tmp_original_xyz, faces)
+        # # TODO: HARD CODED FACE CALCULATION
+        if "additional2original_vertex_match" in input_instance:
+            extra_len = len(xyz_origin) - len(input_instance["additional2original_vertex_match"])
+            tmp_original_xyz = xyz_origin[:extra_len]
+            if not self.prefetch_superpoints:
+                self.get_superpoint(scene, tmp_original_xyz, faces)
 
-
-
-        superpoint = self.superpoints[scene]
-        extra_superpoint = np.copy(superpoint[input_instance["additional2original_vertex_match"]])
-        superpoint = np.concatenate((superpoint, extra_superpoint))
-
-        # TODO: HARD CODED END
-        # if not self.prefetch_superpoints:
-        #     self.get_superpoint(scene, xyz_origin, faces)
+            superpoint = self.superpoints[scene]
+            extra_superpoint = np.copy(superpoint[input_instance["additional2original_vertex_match"]])
+            superpoint = np.concatenate((superpoint, extra_superpoint))
+        else:
+        # # TODO: HARD CODED END
+            if not self.prefetch_superpoints:
+                self.get_superpoint(scene, xyz_origin, faces)
+            superpoint = self.superpoints[scene]
 
         ### jitter / flip x / rotation
         if self.aug_flag:

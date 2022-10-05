@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import gorilla
 
+
 @gorilla.LOSSES.register_module()
 class CylinderLoss(nn.Module):
     def __init__(self,

@@ -1,13 +1,13 @@
 # Copyright (c) Gorilla-Lab. All rights reserved.
 import sys
 from typing import Sequence
-
+import json
 import numpy as np
-
+import os
 import gorilla
 
 from ...structures import VertInstance
-
+IOU_THRESH = 0.5
 
 class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
     """
@@ -38,6 +38,7 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
             class_ids=class_ids,
         )
         self.reset()
+        self.gt_pred_match = {}
 
     def reset(self):
         # initialize precision-recall container to calculate AP
@@ -53,7 +54,8 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
         gt_instances = VertInstance.get_instances(gt_ids, self.class_ids,
                                                   self.class_labels,
                                                   self.id_to_label)
-
+        if len(gt_ids.shape) == 2:
+            gt_ids = gt_ids[:, 0]
         # associate
         gt2pred = gt_instances.copy()
         for label in gt2pred:
@@ -132,6 +134,9 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
         if ap:
             self.evaluate_matches()
             self.print_results()
+            with open(os.path.join("/localhome/yza440/Research/SSTNet/log/multiscan_inst_default/result/epoch512_nmst0.3_scoret0.0_npointt100", 'test', 'gt_pred_match.json'), 'w+') as fp:
+                self.logger.info("mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm")
+                json.dump(self.gt_pred_match, fp, indent=2)
         if prec_rec:
             self.print_prec_recall()
 
@@ -141,12 +146,38 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
         max_length = max(15, max(map(lambda x: len(x), self.class_labels)))
         self.logger.info(
             "Evaluation average precision(AP) for instance segmentation:")
+
+        overleaf_results = {"ap": [], "ap_50": [], "ap_25": []}  # TODO
+
         for (li, class_label) in enumerate(self.class_labels):
             ap_avg = self.avgs["classes"][class_label]["ap"]
             ap_50o = self.avgs["classes"][class_label]["ap50%"]
             ap_25o = self.avgs["classes"][class_label]["ap25%"]
             results.append((class_label.ljust(max_length,
                                               " "), ap_avg, ap_50o, ap_25o))
+
+            # TODO
+            overleaf_results["ap"].append("{:.3f}".format(ap_avg))
+            overleaf_results["ap_50"].append("{:.3f}".format(ap_50o))
+            overleaf_results["ap_25"].append("{:.3f}".format(ap_25o))
+
+        all_ap_avg = self.avgs["all_ap"]  # TODO
+        all_ap_50o = self.avgs["all_ap_50%"]
+        all_ap_25o = self.avgs["all_ap_25%"]
+
+        # TODO
+        overleaf_results["ap"].insert(0, "{:.3f}".format(all_ap_avg))
+        overleaf_results["ap_50"].insert(0, "{:.3f}".format(all_ap_50o))
+        overleaf_results["ap_25"].insert(0, "{:.3f}".format(all_ap_25o))
+
+        with open("sstnet_latex.csv", "a") as f:
+            f.write(",".join(overleaf_results["ap"]))
+            f.write("\n")
+            f.write(",".join(overleaf_results["ap_50"]))
+            f.write("\n")
+            f.write(",".join(overleaf_results["ap_25"]))
+            f.write("\n")
+            f.write("=============================\n")
 
         ap_table = gorilla.table(results, headers=haeders, stralign="left")
         for line in ap_table.split("\n"):
@@ -166,6 +197,7 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
 
     def evaluate_matches(self):
         # results: class x overlap
+        self.gt_pred_match = {}
         for di, (min_region_size, distance_thresh, distance_conf) in enumerate(
                 zip(self.MIN_REGION_SIZES, self.DISTANCE_THRESHES,
                     self.DISTANCE_CONFS)):
@@ -173,6 +205,8 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
                 self.prec_recall_total[overlap_th] = {}
                 pred_visited = {}
                 for m in self.matches:
+                    if overlap_th == IOU_THRESH:
+                        self.gt_pred_match[m] = {}
                     for p in self.matches[m]["instance_pred"]:
                         for label_name in self.class_labels:
                             for p in self.matches[m]["instance_pred"][
@@ -208,6 +242,8 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
                         cur_match = np.zeros(len(gt_instances), dtype=np.bool)
                         # collect matches
                         for (gti, gt) in enumerate(gt_instances):
+                            if overlap_th == IOU_THRESH:
+                                self.gt_pred_match[m][gt["instance_id"]] = ''
                             found_match = False
                             num_pred = len(gt["matched_pred"])
                             for pred in gt["matched_pred"]:
@@ -223,6 +259,9 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
                                     # if already have a prediction for this gt,
                                     # the prediction with the lower score is automatically a false positive
                                     if cur_match[gti]:
+                                        if cur_score[gti] < confidence and overlap_th == IOU_THRESH:
+                                            self.gt_pred_match[m][gt["instance_id"]] = pred['filename']
+
                                         max_score = max(
                                             cur_score[gti], confidence)
                                         min_score = min(
@@ -235,6 +274,8 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
                                         cur_match = np.append(cur_match, True)
                                     # otherwise set score
                                     else:
+                                        if overlap_th == IOU_THRESH:
+                                            self.gt_pred_match[m][gt["instance_id"]] = pred['filename']
                                         found_match = True
                                         cur_match[gti] = True
                                         cur_score[gti] = confidence
@@ -344,6 +385,7 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
                         ap_current = float("nan")
                     self.ap_scores[di, li, oi] = ap_current
 
+
         # average calculation
         d_inf = 0
         o50 = np.where(np.isclose(self.OVERLAPS, 0.5))
@@ -353,14 +395,35 @@ class InstanceEvaluator(gorilla.evaluation.DatasetEvaluator):
         self.avgs["all_ap_50%"] = np.nanmean(self.ap_scores[d_inf, :, o50])
         self.avgs["all_ap_25%"] = np.nanmean(self.ap_scores[d_inf, :, o25])
         self.avgs["classes"] = {}
+        # TODO
+        avg_list = []
+        avg_50_list = []
+        avg_25_list = []
         for (li, label_name) in enumerate(self.class_labels):
             self.avgs["classes"][label_name] = {}
             self.avgs["classes"][label_name]["ap"] = \
                 np.average(self.ap_scores[d_inf, li, oAllBut25])
+            # ap_listtt.append(np.average(self.ap_scores[d_inf, li, oAllBut25]))
             self.avgs["classes"][label_name]["ap50%"] = \
                 np.average(self.ap_scores[d_inf, li, o50])
             self.avgs["classes"][label_name]["ap25%"] = \
                 np.average(self.ap_scores[d_inf, li, o25])
+            a = np.nanstd(self.ap_scores[d_inf, li, oAllBut25]) / np.sqrt(9)
+            b = np.nanstd(self.ap_scores[d_inf, li, o50]) / np.sqrt(1)
+            print("====")
+            print(b.shape)
+            c = np.nanstd(self.ap_scores[d_inf, li, o25]) / np.sqrt(1)
+            avg_list.append(a)
+            avg_50_list.append(b)
+            avg_25_list.append(c)
+            print(a)
+            print(b)
+            print(c)
+        print("===============")
+        print(np.mean(avg_list))
+        # print(np.mean(avg_50_list))
+        # print(np.mean(avg_25_list))
+        # print(np.std(self.ap_scores[d_inf, :, oAllBut25]) / np.sqrt(np.size(self.ap_scores[d_inf, :, oAllBut25])))
 
     # modify from https://github.com/Yang7879/3D-BoNet/blob/master/main_eval.py
     def print_prec_recall(self, threshold: float = 0.5):

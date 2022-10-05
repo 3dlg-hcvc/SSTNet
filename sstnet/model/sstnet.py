@@ -331,13 +331,25 @@ class SSTNet(nn.Module):
                 nodes = nodes_list[batch_idx]
                 ids = (batch_idxs == batch_idx)
                 batch_fusion_scores = torch.sigmoid(fusion_scores[ids])
+
                 threshold = 0.5
+                # while True:
+                #     batch_fusion_labels = (batch_fusion_scores[::2] > threshold) & (batch_fusion_scores[1::2] > threshold)
+                #     batch_fusion_labels = batch_fusion_labels.cpu().numpy().tolist()
+                #     if np.sum(batch_fusion_labels) == 0:
+                #         threshold -= 0.05
+                #         assert threshold != 0, 'batch_fusion_labels threshold is 0'
+                #     else:
+                #         break
                 batch_fusion_labels = (batch_fusion_scores[::2] > threshold) & (batch_fusion_scores[1::2] > threshold)
                 batch_fusion_labels = batch_fusion_labels.cpu().numpy().tolist()
+
                 node_ids = nodes.int().cpu().numpy().tolist()
                 # traversal with splitting
+               
                 batch_cluster_list, batch_node_ids, refine_labels = \
-                    traversal_cluster(tree, node_ids, batch_fusion_labels)
+                        traversal_cluster(tree, node_ids, batch_fusion_labels)
+               
 
                 empty_flag = refine_labels is None
                 ret["empty_flag"] = empty_flag

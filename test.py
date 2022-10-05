@@ -2,7 +2,6 @@
 import argparse
 import numpy as np
 import os
-
 import torch
 import spconv
 import scipy.stats as stats
@@ -10,7 +9,8 @@ import multiprocessing
 import pointgroup_ops
 import gorilla
 import gorilla3d
-import gorilla3d.datasets as datasets
+import glob
+import json
 import sstnet
 
 
@@ -112,7 +112,7 @@ def init():
         if cfg.dataset.granularity == "inst":
             semantic_label_idx = torch.arange(1, 21).cuda()
         if cfg.dataset.granularity == "part":
-            semantic_label_idx = torch.arange(1, 6).cuda()
+            semantic_label_idx = torch.arange(1, 7).cuda()
     elif cfg.dataset.type == "ScanNetV2Inst":
         semantic_label_idx = torch.tensor([
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39
@@ -131,7 +131,7 @@ def test(model, cfg, logger):
 
     cfg.dataset.test_mode = True
     cfg.dataloader.batch_size = 1
-    cfg.dataloader.num_workers = 2
+    cfg.dataloader.num_workers = 12
     test_dataset = gorilla.build_dataset(
         {**cfg.dataset, "use_normals": cfg.model.use_normals, "ignore_label": cfg.data.ignore_label,
          "filename_suffix": cfg.data.filename_suffix})
@@ -210,14 +210,14 @@ def test(model, cfg, logger):
                 scores = ret["proposal_scores"]
 
             ##### preds
-            with torch.no_grad():
-                preds = {}
-                preds["semantic"] = semantic_scores
-                preds["pt_offsets"] = pt_offsets
-                if prepare_flag and not semantic:
-                    proposals_idx, proposals_offset = ret["proposals"]
-                    preds["score"] = scores
-                    preds["proposals"] = (proposals_idx, proposals_offset)
+
+            preds = {}
+            preds["semantic"] = semantic_scores
+            preds["pt_offsets"] = pt_offsets
+            if prepare_flag and not semantic:
+                proposals_idx, proposals_offset = ret["proposals"]
+                preds["score"] = scores
+                preds["proposals"] = (proposals_idx, proposals_offset)
 
             ##### get predictions (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
             semantic_scores = preds["semantic"]  # [N, nClass=20]
@@ -228,8 +228,9 @@ def test(model, cfg, logger):
             ##### semantic segmentation evaluation
             if cfg.data.eval:
                 inputs = [{"scene_name": test_scene_name}]
-                outputs = [{"semantic_pred": semantic_pred}]
-                evaluator.process(inputs, outputs)
+
+            #     outputs = [{"semantic_pred": semantic_pred}]
+            #     evaluator.process(inputs, outputs)
 
             if prepare_flag and not semantic:
                 scores = preds["score"]  # [num_prop, 1]
@@ -272,17 +273,11 @@ def test(model, cfg, logger):
                 if semantic_id.shape[0] == 0:
                     pick_idxs = np.empty(0)
                 else:
-                    proposals_pred_f = proposals_pred.float(
-                    )  # [num_prop, N], float, cuda
-                    intersection = torch.mm(
-                        proposals_pred_f, proposals_pred_f.t(
-                        ))  # [num_prop, num_prop], float, cuda
-                    proposals_pointnum = proposals_pred_f.sum(
-                        1)  # [num_prop], float, cuda
-                    proposals_pn_h = proposals_pointnum.unsqueeze(-1).repeat(
-                        1, proposals_pointnum.shape[0])
-                    proposals_pn_v = proposals_pointnum.unsqueeze(0).repeat(
-                        proposals_pointnum.shape[0], 1)
+                    proposals_pred_f = proposals_pred.float()  # [num_prop, N], float, cuda
+                    intersection = torch.mm(proposals_pred_f, proposals_pred_f.t())  # [num_prop, num_prop], float, cuda
+                    proposals_pointnum = proposals_pred_f.sum(1)  # [num_prop], float, cuda
+                    proposals_pn_h = proposals_pointnum.unsqueeze(-1).repeat(1, proposals_pointnum.shape[0])
+                    proposals_pn_v = proposals_pointnum.unsqueeze(0).repeat(proposals_pointnum.shape[0], 1)
                     cross_ious = intersection / (proposals_pn_h +
                                                  proposals_pn_v - intersection)
 
@@ -298,6 +293,15 @@ def test(model, cfg, logger):
 
                 ##### prepare for evaluation
                 if cfg.data.eval:
+                    gt_file = os.path.join(cfg.dataset.data_root, cfg.data.split + "_gt", test_scene_name + ".txt")
+                    if cfg.data.inst_pred_mode:
+                        gt_ids_len = len(np.loadtxt(gt_file))
+                        extra_len = gt_ids_len - batch['feats'].shape[0]
+                        dummy_clusters = torch.zeros((nclusters, extra_len), dtype=torch.int64).cuda()
+                        clusters = torch.cat((clusters, dummy_clusters), axis=1)
+                        # cluster_scores = torch.cat((cluster_scores, torch.tensor([0], dtype=torch.int64).cuda()))
+                        # cluster_semantic_id = torch.cat(
+                        #     (cluster_semantic_id, torch.tensor([6], dtype=torch.int64).cuda()))
                     pred_info = {}
                     pred_info["scene_name"] = test_scene_name
                     pred_info["conf"] = cluster_scores.cpu().numpy()
@@ -307,38 +311,46 @@ def test(model, cfg, logger):
 
             inference_time = timer.since_last()
 
-            ##### visual
-            if cfg.data.visual is not None:
-                # visual semantic result
-                gorilla.check_dir(cfg.data.visual)
-                if cfg.semantic:
-                    pass
-                # visual instance result
-                else:
-                    datasets.visualize_instance_mask(
-                        clusters.cpu().numpy(),
-                        test_scene_name,
-                        cfg.data.visual,
-                        os.path.join(data_root, sub_dir),
-                        cluster_scores.cpu().numpy(),
-                        semantic_pred.cpu().numpy(), )
+            # ##### visual
+            # if cfg.data.visual is not None:
+            #     # visual semantic result
+            #     gorilla.check_dir(cfg.data.visual)
+            #     if cfg.semantic:
+            #         pass
+            #     # visual instance result
+            #     else:
+            #         datasets.visualize_instance_mask(
+            #             clusters.cpu().numpy(),
+            #             test_scene_name,
+            #             cfg.data.visual,
+            #             os.path.join(data_root, sub_dir),
+            #             cluster_scores.cpu().numpy(),
+            #             semantic_pred.cpu().numpy(), )
 
             ##### save files
             if (prepare_flag and cfg.data.save):
+                os.makedirs(os.path.join(result_dir, 'semantic'), exist_ok=True)
+                semantic_np = semantic_pred.cpu().numpy()
+                np.savetxt(os.path.join(result_dir, 'semantic', test_scene_name + '.txt'), semantic_np, fmt='%d')
                 f = open(os.path.join(result_dir, "instance", test_scene_name + ".txt"), "w")
                 for proposal_id in range(nclusters):
                     clusters_i = clusters[proposal_id].cpu().numpy()  # [N]
                     semantic_label = np.argmax(
-                        np.bincount(
-                            semantic_pred[np.where(clusters_i == 1)[0]].cpu()))
+                        np.bincount(semantic_pred[np.where(clusters_i == 1)[0]].cpu()))
                     score = cluster_scores[proposal_id]
-                    f.write(f"instance/predicted_masks/{test_scene_name}_{proposal_id:03d}.txt"
+                    f.write(f"predicted_masks/{test_scene_name}_{proposal_id:03d}.txt "
                             f"{semantic_label_idx[semantic_label]} {score:.4f}")
                     if proposal_id < nclusters - 1:
                         f.write("\n")
                     np.savetxt(os.path.join(result_dir, "instance", "predicted_masks",test_scene_name + "_%03d.txt" % (proposal_id)),
                                 clusters_i.nonzero(), fmt="%d")
                 f.close()
+
+                # logger.info("?????????????????")
+                # with open(os.path.join(result_dir, 'gt_pred_match.json'), 'w+') as fp:
+                #     logger.info(inst_evaluator.gt_pred_match)
+                #     logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                #     json.dump(inst_evaluator.gt_pred_match, fp, indent=2)
 
             save_time = timer.since_last()
             total_time = timer.since_start()
@@ -354,6 +366,27 @@ def test(model, cfg, logger):
                     f"instance iter: {i + 1}/{len(test_dataloader)} point_num: {N} "
                     f"ncluster: {nclusters} time: total {total_time:.2f}s data: {data_time:.2f}s "
                     f"inference {inference_time:.2f}s save {save_time:.2f}s")
+
+            # if pth does not appear in gt, create a dummy one
+            if cfg.data.eval and cfg.data.inst_pred_mode:
+                gt_file_names = sorted(glob.glob(os.path.join(cfg.dataset.data_root, cfg.data.split + "_gt", "*.txt")))
+
+                all_predicted_scan_ids = inst_evaluator.matches.keys()
+                for gt_file in gt_file_names:
+                    gt_file_labels = np.loadtxt(gt_file, dtype=np.int32)
+                    pts_num = len(gt_file_labels)
+                    gt_file_name = gt_file.split("/")[-1][:-4]
+                    inputs = [{"scene_name": gt_file_name}]
+                    if gt_file_name not in all_predicted_scan_ids:
+                        with open(os.path.join(result_dir, 'instance', gt_file_name + '.txt'), "w") as f:
+                            f.write("\n")
+
+                        pred_info = {}
+                        pred_info["scene_name"] = gt_file_name
+                        pred_info["conf"] = np.zeros(1, dtype=np.float32)
+                        pred_info["label_id"] = np.ones(1, dtype=np.int64) * 6
+                        pred_info["mask"] = np.zeros((1, pts_num), dtype=bool)
+                        inst_evaluator.process(inputs, [pred_info])
 
         ##### evaluation
         if cfg.data.eval:

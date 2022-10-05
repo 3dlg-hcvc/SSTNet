@@ -17,14 +17,14 @@ data:
   TEST_SCORE_THRESH: 0.00
   TEST_NPOINT_THRESH: 100
 
-  split: val
+  split: test
   test_epoch: 512
 
   filename_suffix: .pth
 
 dataloader:
   batch_size: 4
-  num_workers: 4 # data loader workers
+  num_workers: 0 # data loader workers
 
 dataset:
   type: MultiScanInst
@@ -38,8 +38,8 @@ dataset:
   with_elastic: False
   with_jitter: True
   with_flip: True
-  with_rotation: True
-  with_color_aug: True
+  with_rotation: False
+  with_color_aug: False
 
   prefetch_superpoints: False
 

@@ -69,11 +69,22 @@ class VertInstance(object):
         for label in class_labels:
             instances[label] = []
         # traverse all instances
-        inst_ids = np.unique(instance_ids)
+        if len(instance_ids.shape) == 2:
+            inst_ids = np.unique(instance_ids[:, 0])
+            opened_parts = instance_ids[:, 1]
+        else:
+            inst_ids = np.unique(instance_ids)
         for id in inst_ids:
             # skip 0 and negative instance id (background points)
-            if id <= 0:
+            if len(instance_ids.shape) == 2:
+                idxxx = id == instance_ids[:, 0]
+
+            if id <= 0 or (id // 1000) in [0]:
                 continue
+            if len(instance_ids.shape) == 2:
+                assert np.all(opened_parts[idxxx][0] == opened_parts[idxxx])
+            # if opened_parts[idxxx][0] == 1:
+            #     continue
             # get instance
             inst = VertInstance(instance_ids, id)
             # record in correspond class dict

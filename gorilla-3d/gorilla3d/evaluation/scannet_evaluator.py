@@ -48,6 +48,7 @@ class ScanNetSemanticEvaluator(SemanticEvaluator):
             semantic_gt = self.read_gt(self.dataset_root, scene_name)
             semantic_pred = output["semantic_pred"].cpu().clone().numpy()
             semantic_pred = self.class_ids[semantic_pred]
+
             self.fill_confusion(semantic_pred, semantic_gt)
 
     @staticmethod
