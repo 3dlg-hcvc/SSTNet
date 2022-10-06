@@ -139,7 +139,7 @@ class MultiScanInst(Dataset):
             semantic_label = input_instance["sem_labels"]
             instance_label = input_instance["instance_ids"]
             scene = self.files[index][0]
-
+        xyz_origin -= xyz_origin.mean(axis=0)
         if not self.use_normals:
             vertex_normal = None
 
@@ -242,7 +242,7 @@ class MultiScanInst(Dataset):
                 xyz_offset = xyz + offset
                 valid_idxs = (xyz_offset.min(1) >= 0) * ((xyz_offset < full_scale).sum(1) == 3)
                 full_scale[:2] -= 32
-            if valid_idxs.sum() > (self.max_npoint // 2) and np.any(semantic_label[valid_idxs] != self.ignore_label) and np.any(
+            if valid_idxs.sum() > 5000 and np.any(semantic_label[valid_idxs] != self.ignore_label) and np.any(
                     instance_label[valid_idxs] != self.ignore_label):
                 break
         return xyz_offset, valid_idxs
