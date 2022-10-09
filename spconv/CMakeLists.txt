@@ -5,7 +5,6 @@ option(SPCONV_BuildTests "Build the unit tests when BUILD_TESTING is enabled." O
 set(CMAKE_CXX_EXTENSIONS OFF) # avoid gnu++11 be added to CXX flags
 
 set(CUDA_TOOLKIT_ROOT_DIR "${CMAKE_CUDA_COMPILER}")
-set(CUDNN_LIBRARY_PATH /cvmfs/rcg.sfu.ca/sw/env/neutral/x86_64/LIB/CUDNN/8.0.5-CUDA11.1/cuda/lib64/libcudnn.so)
 get_filename_component(CUDA_TOOLKIT_ROOT_DIR "${CUDA_TOOLKIT_ROOT_DIR}" DIRECTORY)
 get_filename_component(CUDA_TOOLKIT_ROOT_DIR "${CUDA_TOOLKIT_ROOT_DIR}" DIRECTORY)
 if(WIN32) # true if windows (32 and 64 bit)
