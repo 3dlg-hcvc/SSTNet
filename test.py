@@ -331,6 +331,8 @@ def test(model, cfg, logger):
                     semantic_label = np.argmax(
                         np.bincount(
                             semantic_pred[np.where(clusters_i == 1)[0]].cpu()))
+                    if semantic_label in [0, 1, 2]:
+                        continue
                     score = cluster_scores[proposal_id]
                     f.write(f"predicted_masks/{test_scene_name}_{proposal_id:03d}.txt "
                             f"{semantic_label_idx[semantic_label]} {score:.4f}")
