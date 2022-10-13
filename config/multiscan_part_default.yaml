@@ -11,7 +11,7 @@ data:
 
   # test mode
   test_seed: 567
-  test_workers: 8 # data loader workers
+  test_workers: 4
 
   TEST_NMS_THRESH: 0.3
   TEST_SCORE_THRESH: 0.00
@@ -24,7 +24,7 @@ data:
 
 dataloader:
   batch_size: 64
-  num_workers: 8 # data loader workers
+  num_workers: 4
 
 dataset:
   type: MultiScanInst
