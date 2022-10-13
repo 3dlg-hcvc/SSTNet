@@ -377,6 +377,8 @@ class SSTNet(nn.Module):
                     # get proposals
                     # convert superpoint id cluster into mask proposals
                     proposals_idx = get_proposals_idx(superpoint, batch_cluster_list)
+                    if proposals_idx is None:
+                        continue
                     proposals_idx[:, 1] = filter_ids.cpu()[proposals_idx[:, 1]]
                     proposals_idx[:, 0] += proposals_idx_bias
                     proposals_idx_bias = (proposals_idx[:, 0].max() + 1)
