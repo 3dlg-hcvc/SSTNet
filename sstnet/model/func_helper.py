@@ -325,6 +325,8 @@ def get_proposals_idx(superpoint: torch.Tensor, cluster_list: List[List[int]]):
             continue
         proposals_idx_list.append(proposals_idx)
         cluster_id += 1
+    if len(proposals_idx_list) == 0:
+        return None
     proposals_idx = np.concatenate(proposals_idx_list)
     proposals_idx = torch.from_numpy(proposals_idx)
 
